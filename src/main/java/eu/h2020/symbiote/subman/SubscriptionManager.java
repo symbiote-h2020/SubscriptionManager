@@ -11,6 +11,6 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 public class SubscriptionManager {
 
 	public static void main(String[] args) {
-		SpringApplication.run(SubscriptionManager.class, args);
+		SpringApplication.run(SubscriptionManagerTest.class, args);
     }
 }
