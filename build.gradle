@@ -1,7 +1,7 @@
 // initial extensions to gradle
 buildscript {
     ext {
-        springBootVersion = '1.5.8.RELEASE'
+        springBootVersion = '1.5.9.RELEASE'
         springCloudVersion = 'Dalston.SR4'
     }
     repositories {
