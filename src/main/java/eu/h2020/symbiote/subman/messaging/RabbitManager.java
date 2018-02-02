@@ -61,7 +61,7 @@ public class RabbitManager {
 	 * of all consumers used in Registry communication.
 	 */
 	public void init() {
-
+		
 		log.info("RabbitManager of SubscriptionManager is being initialized!");
 
 		try {
@@ -72,22 +72,7 @@ public class RabbitManager {
 			e.printStackTrace();
 		}
 	}
-
-	/**
-	 * Cleanup method for rabbit - set on pre destroy
-	 */
-	@PreDestroy
-	public void cleanup() {
-		log.info("Rabbit cleaned!");
-		try {
-			if (this.connection != null && this.connection.isOpen()) {
-				this.connection.close();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
+	
 	public Object sendRpcMessage(String exchange, String routingKey, Object obj) {
 		log.info("Sending RPC message");
 
@@ -103,6 +88,21 @@ public class RabbitManager {
 		log.info("RPC Response received obj: " + receivedObj);
 
 		return receivedObj;
+	}
+	
+	/**
+	 * Cleanup method for rabbit - set on pre destroy
+	 */
+	@PreDestroy
+	public void cleanup() {
+		log.info("Rabbit cleaned!");
+		try {
+			if (this.connection != null && this.connection.isOpen()) {
+				this.connection.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 }
