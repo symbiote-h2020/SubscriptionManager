@@ -2,6 +2,8 @@ package eu.h2020.symbiote.subman.messaging;
 
 import com.rabbitmq.client.*;
 
+import eu.h2020.symbiote.subman.messaging.consumers.Consumers;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -34,7 +36,7 @@ public class RabbitManager {
 	private Connection connection;
 	private RabbitTemplate rabbitTemplate;
 
-	public RabbitManager(RabbitTemplate rabbitTemplate) {
+	public RabbitManager(RabbitTemplate rabbitTemplate) throws Exception {
 		this.rabbitTemplate = rabbitTemplate;
 	}
 
