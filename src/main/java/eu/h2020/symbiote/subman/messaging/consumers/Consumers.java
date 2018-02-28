@@ -20,6 +20,10 @@ import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 
+/**
+ * @author Petar Krivic (UniZG-FER)
+ * 28/02/2018
+ */
 @Component
 public class Consumers {
 

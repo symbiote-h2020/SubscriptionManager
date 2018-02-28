@@ -19,7 +19,8 @@ import java.util.concurrent.TimeoutException;
 /**
  * Rabbit AMQP bean.
  *
- * Created by Petar Krivic (30.1.2018)
+ * @author Petar Krivic
+ * 30/01/2018
  */
 @Component
 public class RabbitManager {

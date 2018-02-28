@@ -26,110 +26,112 @@ import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.security.handler.IComponentSecurityHandler;
 import io.jsonwebtoken.Claims;
 
+/**
+ * @author Petar Krivic (UniZG-FER)
+ * 28/02/2018
+ */
 @Component
 public class SecurityManager {
-	
+
 	private static final Logger logger = LoggerFactory.getLogger(SecurityManager.class);
 	private IComponentSecurityHandler securityHandler = null;
 
 	@Value("${platform.id}")
 	private String platformId;
-    
+
 	private final boolean isSecurityEnabled;
 
 	@Autowired
 	public SecurityManager(@Value("${aam.deployment.owner.username") String componentOwnerUsername,
-			@Value("${aam.deployment.owner.password}") String componentOwnerPassword, @Value("${symbIoTe.localaam.url}") String localAAMAddress,
-			@Value("${symbIoTe.sm.clientId}") String clientId, @Value("${aam.security.KEY_STORE_FILE_NAME}") String keystorePath,
-			@Value("${aam.security.KEY_STORE_PASSWORD}") String keystorePassword, @Value("${symbiote.sm.security.enabled}") boolean isSecurityEnabled)
-			throws SecurityHandlerException {
+			@Value("${aam.deployment.owner.password}") String componentOwnerPassword,
+			@Value("${symbIoTe.localaam.url}") String localAAMAddress,
+			@Value("${symbIoTe.sm.clientId}") String clientId,
+			@Value("${aam.security.KEY_STORE_FILE_NAME}") String keystorePath,
+			@Value("${aam.security.KEY_STORE_PASSWORD}") String keystorePassword,
+			@Value("${symbiote.sm.security.enabled}") boolean isSecurityEnabled) throws SecurityHandlerException {
 		this.isSecurityEnabled = isSecurityEnabled;
 
 		if (isSecurityEnabled) {
-			securityHandler = ComponentSecurityHandlerFactory.getComponentSecurityHandler(keystorePath, keystorePassword, clientId, localAAMAddress, componentOwnerUsername,
-					componentOwnerPassword);
+			securityHandler = ComponentSecurityHandlerFactory.getComponentSecurityHandler(keystorePath,
+					keystorePassword, clientId, localAAMAddress, componentOwnerUsername, componentOwnerPassword);
 		} else {
 			logger.info("Security Request validation is disabled");
 		}
 	}
-	
+
 	public ResponseEntity generateServiceResponse() {
-        if (isSecurityEnabled) {
-            try {
-                String serviceResponse = securityHandler.generateServiceResponse();
-                return new ResponseEntity<>(serviceResponse, HttpStatus.OK);
-            } catch (SecurityHandlerException e) {
-                logger.info("Failed to generate a service response", e);
-                return new ResponseEntity<>(e.getErrorMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-        } else {
-            String message = "generateServiceResponse: Security is disabled";
-            logger.debug(message);
-            return new ResponseEntity<>(message, HttpStatus.OK);
-        }
-    }
-	
+		if (isSecurityEnabled) {
+			try {
+				String serviceResponse = securityHandler.generateServiceResponse();
+				return new ResponseEntity<>(serviceResponse, HttpStatus.OK);
+			} catch (SecurityHandlerException e) {
+				logger.info("Failed to generate a service response", e);
+				return new ResponseEntity<>(e.getErrorMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+			}
+		} else {
+			String message = "generateServiceResponse: Security is disabled";
+			logger.debug(message);
+			return new ResponseEntity<>(message, HttpStatus.OK);
+		}
+	}
+
 	public ResponseEntity checkListResourcesRequest(HttpHeaders httpHeaders, String serviceResponse) {
-        if (isSecurityEnabled) {
-            if (httpHeaders == null)
-                return addSecurityService(
-                        "HttpHeaders are null", new HttpHeaders(),
-                        HttpStatus.BAD_REQUEST, serviceResponse);
+		if (isSecurityEnabled) {
+			if (httpHeaders == null)
+				return addSecurityService("HttpHeaders are null", new HttpHeaders(), HttpStatus.BAD_REQUEST,
+						serviceResponse);
 
-            SecurityRequest securityRequest;
-            try {
-                securityRequest = new SecurityRequest(httpHeaders.toSingleValueMap());
-                logger.debug("Received SecurityRequest of listResources request to be verified: (" + securityRequest + ")");
-            } catch (InvalidArgumentsException e) {
-                logger.info("Could not create the SecurityRequest", e);
-                return addSecurityService(
-                        e.getErrorMessage(), new HttpHeaders(),
-                        HttpStatus.BAD_REQUEST, serviceResponse);
-            }
+			SecurityRequest securityRequest;
+			try {
+				securityRequest = new SecurityRequest(httpHeaders.toSingleValueMap());
+				logger.debug(
+						"Received SecurityRequest of listResources request to be verified: (" + securityRequest + ")");
+			} catch (InvalidArgumentsException e) {
+				logger.info("Could not create the SecurityRequest", e);
+				return addSecurityService(e.getErrorMessage(), new HttpHeaders(), HttpStatus.BAD_REQUEST,
+						serviceResponse);
+			}
 
-            Set<String> checkedPolicies;
-            try {
-                checkedPolicies = checkSingleLocalHomeTokenAccessPolicy(securityRequest);
-            } catch (Exception e) {
-                logger.info("Could not verify the access policies", e);
-                return addSecurityService(
-                        e.getMessage(), new HttpHeaders(),
-                        HttpStatus.INTERNAL_SERVER_ERROR, serviceResponse);
-            }
+			Set<String> checkedPolicies;
+			try {
+				checkedPolicies = checkSingleLocalHomeTokenAccessPolicy(securityRequest);
+			} catch (Exception e) {
+				logger.info("Could not verify the access policies", e);
+				return addSecurityService(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR,
+						serviceResponse);
+			}
 
-            if (checkedPolicies.size() >= 1) {
-                return new ResponseEntity<>(HttpStatus.OK);
-            } else {
-                return addSecurityService(
-                        "The stored resource access policy was not satisfied",
-                        new HttpHeaders(), HttpStatus.UNAUTHORIZED, serviceResponse);
-            }
-        } else {
-            logger.debug("checkAccess: Security is disabled");
+			if (checkedPolicies.size() >= 1) {
+				return new ResponseEntity<>(HttpStatus.OK);
+			} else {
+				return addSecurityService("The stored resource access policy was not satisfied", new HttpHeaders(),
+						HttpStatus.UNAUTHORIZED, serviceResponse);
+			}
+		} else {
+			logger.debug("checkAccess: Security is disabled");
 
-            //if security is disabled in properties
-            return new ResponseEntity<>("Security disabled", HttpStatus.OK);
-        }
-    }
-	
-    public static ResponseEntity addSecurityService(Object response, HttpHeaders httpHeaders,
-            HttpStatus httpStatus, String serviceResponse) {
-httpHeaders.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(serviceResponse));
-return new ResponseEntity<>(response, httpHeaders, httpStatus);
-}
+			// if security is disabled in properties
+			return new ResponseEntity<>("Security disabled", HttpStatus.OK);
+		}
+	}
 
-    private Set<String> checkSingleLocalHomeTokenAccessPolicy(SecurityRequest securityRequest)
-            throws Exception {
-        Map<String, IAccessPolicy> accessPoliciesMap = new HashMap<>();
-        Map<String, String> requiredClaims = new HashMap<>();
+	public static ResponseEntity addSecurityService(Object response, HttpHeaders httpHeaders, HttpStatus httpStatus,
+			String serviceResponse) {
+		httpHeaders.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(serviceResponse));
+		return new ResponseEntity<>(response, httpHeaders, httpStatus);
+	}
 
-        requiredClaims.put(Claims.ISSUER, platformId);
+	private Set<String> checkSingleLocalHomeTokenAccessPolicy(SecurityRequest securityRequest) throws Exception {
+		Map<String, IAccessPolicy> accessPoliciesMap = new HashMap<>();
+		Map<String, String> requiredClaims = new HashMap<>();
 
-        // Construct policy
-        IAccessPolicy policy = AccessPolicyFactory.getAccessPolicy(
-                new SingleTokenAccessPolicySpecifier(AccessPolicyType.SLHTAP, requiredClaims));
-        accessPoliciesMap.put("SingleLocalHomeTokenAccessPolicy", policy);
+		requiredClaims.put(Claims.ISSUER, platformId);
 
-        return securityHandler.getSatisfiedPoliciesIdentifiers(accessPoliciesMap, securityRequest);
-    }
+		// Construct policy
+		IAccessPolicy policy = AccessPolicyFactory
+				.getAccessPolicy(new SingleTokenAccessPolicySpecifier(AccessPolicyType.SLHTAP, requiredClaims));
+		accessPoliciesMap.put("SingleLocalHomeTokenAccessPolicy", policy);
+
+		return securityHandler.getSatisfiedPoliciesIdentifiers(accessPoliciesMap, securityRequest);
+	}
 }

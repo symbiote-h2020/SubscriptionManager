@@ -16,7 +16,8 @@ import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 
 /**
- * SubscriptionManager REST interface. Created by Petar Krivic on
+ * SubscriptionManager REST interface.
+ * @author Petar Krivic
  * 30/01/2018.
  */
 @RestController
