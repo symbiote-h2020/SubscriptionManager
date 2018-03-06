@@ -121,6 +121,7 @@ public class SecurityManager {
 		return new ResponseEntity<>(response, httpHeaders, httpStatus);
 	}
 
+	//TODO adapt to federation access policies
 	private Set<String> checkSingleLocalHomeTokenAccessPolicy(SecurityRequest securityRequest) throws Exception {
 		Map<String, IAccessPolicy> accessPoliciesMap = new HashMap<>();
 		Map<String, String> requiredClaims = new HashMap<>();
