@@ -1,8 +1,10 @@
 package eu.h2020.symbiote.subman.messaging;
 
-import com.rabbitmq.client.*;
+import java.io.IOException;
+import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 
-import eu.h2020.symbiote.subman.messaging.consumers.Consumers;
+import javax.annotation.PreDestroy;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -11,10 +13,8 @@ import org.springframework.amqp.rabbit.support.CorrelationData;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PreDestroy;
-import java.io.IOException;
-import java.util.UUID;
-import java.util.concurrent.TimeoutException;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
 
 /**
  * Rabbit AMQP bean.

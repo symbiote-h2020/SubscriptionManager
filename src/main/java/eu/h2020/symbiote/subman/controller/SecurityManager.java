@@ -27,8 +27,7 @@ import eu.h2020.symbiote.security.handler.IComponentSecurityHandler;
 import io.jsonwebtoken.Claims;
 
 /**
- * @author Petar Krivic (UniZG-FER)
- * 28/02/2018
+ * @author Petar Krivic (UniZG-FER) 28/02/2018
  */
 @Component
 public class SecurityManager {
@@ -121,12 +120,18 @@ public class SecurityManager {
 		return new ResponseEntity<>(response, httpHeaders, httpStatus);
 	}
 
-	//TODO adapt to federation access policies
+	// TODO adapt to federation access policies
 	private Set<String> checkSingleLocalHomeTokenAccessPolicy(SecurityRequest securityRequest) throws Exception {
 		Map<String, IAccessPolicy> accessPoliciesMap = new HashMap<>();
 		Map<String, String> requiredClaims = new HashMap<>();
 
 		requiredClaims.put(Claims.ISSUER, platformId);
+		/**
+		 * FEDERATION_HOME_PLATFORM_ID = "fed_h"
+		 * FEDERATION_IDENTIFIER_KEY = "fed_id" 
+		 * FEDERATION_SIZE = "fed_s" 
+		 * FEDERATION_MEMBER_KEY_PREFIX ="fed_m_"
+		 */
 
 		// Construct policy
 		IAccessPolicy policy = AccessPolicyFactory
