@@ -41,7 +41,8 @@ public class Consumers {
 	private FederatedResourceRepository fedResRepo;
 
 	private MessageConverter messageConverter;
-
+	
+	@Autowired
 	public Consumers() {
 		messageConverter = new Jackson2JsonMessageConverter();
 	}

@@ -1,6 +1,5 @@
 package eu.h2020.symbiote.subman.controller;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -19,7 +18,6 @@ import eu.h2020.symbiote.security.accesspolicies.IAccessPolicy;
 import eu.h2020.symbiote.security.accesspolicies.common.AccessPolicyFactory;
 import eu.h2020.symbiote.security.accesspolicies.common.AccessPolicyType;
 import eu.h2020.symbiote.security.accesspolicies.common.singletoken.SingleTokenAccessPolicySpecifier;
-import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.commons.exceptions.custom.InvalidArgumentsException;
 import eu.h2020.symbiote.security.commons.exceptions.custom.SecurityHandlerException;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
@@ -51,14 +49,15 @@ public class SecurityManager {
 		this.isSecurityEnabled = isSecurityEnabled;
 
 		if (isSecurityEnabled) {
+			logger.info("SECURITY IS ENABLED.");
 			securityHandler = ComponentSecurityHandlerFactory.getComponentSecurityHandler(keystorePath,
 					keystorePassword, clientId, localAAMAddress, componentOwnerUsername, componentOwnerPassword);
 		} else {
-			logger.info("Security Request validation is disabled");
+			logger.info("SECURITY IS NOT ENABLED.");
 		}
 	}
 
-	public ResponseEntity generateServiceResponse() {
+	public ResponseEntity<?> generateServiceResponse() {
 		if (isSecurityEnabled) {
 			try {
 				String serviceResponse = securityHandler.generateServiceResponse();
@@ -74,20 +73,19 @@ public class SecurityManager {
 		}
 	}
 
-	public ResponseEntity checkListResourcesRequest(HttpHeaders httpHeaders, String serviceResponse) {
+	public ResponseEntity<?> checkRequest(HttpHeaders httpHeaders, String serviceResponse) {
 		if (isSecurityEnabled) {
 			if (httpHeaders == null)
-				return addSecurityService("HttpHeaders are null", new HttpHeaders(), HttpStatus.BAD_REQUEST,
+				return AuthorizationServiceHelper.addSecurityService("HttpHeaders are null", new HttpHeaders(), HttpStatus.BAD_REQUEST,
 						serviceResponse);
 
 			SecurityRequest securityRequest;
 			try {
 				securityRequest = new SecurityRequest(httpHeaders.toSingleValueMap());
-				logger.debug(
-						"Received SecurityRequest of listResources request to be verified: (" + securityRequest + ")");
+				logger.debug("Received SecurityRequest of listResources request to be verified: (" + securityRequest + ")");
 			} catch (InvalidArgumentsException e) {
 				logger.info("Could not create the SecurityRequest", e);
-				return addSecurityService(e.getErrorMessage(), new HttpHeaders(), HttpStatus.BAD_REQUEST,
+				return AuthorizationServiceHelper.addSecurityService(e.getErrorMessage(), new HttpHeaders(), HttpStatus.BAD_REQUEST,
 						serviceResponse);
 			}
 
@@ -96,14 +94,14 @@ public class SecurityManager {
 				checkedPolicies = checkSingleLocalHomeTokenAccessPolicy(securityRequest);
 			} catch (Exception e) {
 				logger.info("Could not verify the access policies", e);
-				return addSecurityService(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR,
+				return AuthorizationServiceHelper.addSecurityService(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR,
 						serviceResponse);
 			}
 
 			if (checkedPolicies.size() >= 1) {
 				return new ResponseEntity<>(HttpStatus.OK);
 			} else {
-				return addSecurityService("The stored resource access policy was not satisfied", new HttpHeaders(),
+				return AuthorizationServiceHelper.addSecurityService("The stored resource access policy was not satisfied", new HttpHeaders(),
 						HttpStatus.UNAUTHORIZED, serviceResponse);
 			}
 		} else {
@@ -112,12 +110,6 @@ public class SecurityManager {
 			// if security is disabled in properties
 			return new ResponseEntity<>("Security disabled", HttpStatus.OK);
 		}
-	}
-
-	public static ResponseEntity addSecurityService(Object response, HttpHeaders httpHeaders, HttpStatus httpStatus,
-			String serviceResponse) {
-		httpHeaders.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(serviceResponse));
-		return new ResponseEntity<>(response, httpHeaders, httpStatus);
 	}
 
 	// TODO adapt to federation access policies
