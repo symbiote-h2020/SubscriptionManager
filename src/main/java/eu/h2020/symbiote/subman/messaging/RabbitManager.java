@@ -10,9 +10,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.support.CorrelationData;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 
@@ -76,6 +79,13 @@ public class RabbitManager {
 		}
 	}
 	
+	/**
+	 * Sends RPC message and returns the answer.
+	 * @param exchange
+	 * @param routingKey
+	 * @param obj
+	 * @return
+	 */
 	public Object sendRpcMessage(String exchange, String routingKey, Object obj) {
 		log.info("Sending RPC message");
 
@@ -89,8 +99,24 @@ public class RabbitManager {
 		}
 
 		log.info("RPC Response received obj: " + receivedObj);
-
 		return receivedObj;
+	}
+	
+	/**
+	 * Sends async message using the Jackson2JsonMessageConverter
+	 * @param exchange
+	 * @param routingKey
+	 * @param obj
+	 */
+	public void sendAsyncMessageJSON(String exchange, String routingKey, Object obj) {
+		log.info("Sending async JSON message");
+
+		ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(SerializationFeature.INDENT_OUTPUT, true);
+		Jackson2JsonMessageConverter messageConverter = new Jackson2JsonMessageConverter(mapper);
+        rabbitTemplate.setMessageConverter(messageConverter);
+		
+        rabbitTemplate.convertAndSend(exchange, routingKey, obj);
 	}
 	
 	/**

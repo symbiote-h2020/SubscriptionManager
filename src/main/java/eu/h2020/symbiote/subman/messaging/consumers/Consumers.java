@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
+import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
+import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
@@ -68,31 +70,42 @@ public class Consumers {
 	}
 
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.addOrUpdateResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.addOrUpdateResources}"))
-	public void addedOrUpdatedFederatedResource(Message msg) throws IOException {
+	public void addedOrUpdateFederatedResource(Message msg) throws IOException {
 
-		FederatedResource federatedResource = (FederatedResource) messageConverter.fromMessage(msg);
-		fedResRepo.save(federatedResource);
-		logger.info("Federated resource with id " + federatedResource.getId()
-				+ " received from PlatfromRegistry added to repository.");
+		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);	
+		logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
 
-		Federation interestedFederation = fedRepo.findOne(federatedResource.getFederationId());
-
-		for (FederationMember fm : interestedFederation.getMembers()) {
-			// TODO send HTTP-POST notification to all other members..
+		for(FederatedResource fr : rsMsg.getNewFederatedResources()){
+			fedResRepo.save(fr);
+			logger.info("Federated resource with id " + fr.getId()
+			+ " added to repository.");
+			
+			//TODO check if the whole list is for the same federation members
+			Federation interestedFederation = fedRepo.findOne(fr.getFederationId());
+			
+			for (FederationMember fm : interestedFederation.getMembers()) {
+				// TODO send HTTP-POST notification to all other members..
+			}
 		}
 	}
 
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.removeResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.removeResources}"))
-	public void removeFederatedResource(String resourceId) throws IOException {
+	public void removeFederatedResource(Message msg) throws IOException {
 
-		FederatedResource fedRes = fedResRepo.findOne(resourceId);
-		Federation interestedFederation = fedRepo.findOne(fedRes.getFederationId());
-
-		fedResRepo.delete(resourceId);
-		logger.info("Federated resource with id " + resourceId + " removed from repository.");
-
-		for (FederationMember fm : interestedFederation.getMembers()) {
-			// TODO send HTTP-POST notification to all other members..
+		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
+		logger.info("Received ResourcesDeletedMessage from Platform Registry");
+		
+		for(String id : rdDel.getDeletedIds()){
+			FederatedResource fedRes = fedResRepo.findOne(id);
+			Federation interestedFederation = fedRepo.findOne(fedRes.getFederationId());
+			
+			fedResRepo.delete(id);
+			logger.info("Federated resource with id " + id + " removed from repository.");
+			
+			//TODO check if the whole list is for the same federation members
+			for (FederationMember fm : interestedFederation.getMembers()) {
+				// TODO send HTTP-POST notification to all other members..
+			}
 		}
 	}
 
