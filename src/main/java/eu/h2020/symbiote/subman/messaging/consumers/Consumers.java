@@ -109,18 +109,4 @@ public class Consumers {
 			}
 		}
 	}
-
-//	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.subscription.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.subscriptionCreated}"))
-//	public void subscriptionCreated() throws IOException { // DEFINE
-//															// SUBSCRIPTION
-//															// OBJECT
-//
-//	}
-//
-//	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.subscription.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.subscriptionRemoved}"))
-//	public void subscriptionRemoved() throws IOException { // DEFINE
-//															// SUBSCRIPTION
-//															// OBJECT
-//
-//	}
 }

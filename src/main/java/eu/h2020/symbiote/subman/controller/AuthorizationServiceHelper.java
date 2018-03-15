@@ -14,7 +14,7 @@ import java.util.Collections;
 public class AuthorizationServiceHelper {
 
 	public static ResponseEntity<?> checkSecurityRequestAndCreateServiceResponse(SecurityManager securityManager,
-			HttpHeaders httpHeaders) {
+			HttpHeaders httpHeaders, String senderPlatformId) {
 		
 		// Create the service response. If it fails, return appropriate error since there is no need to continue
 		ResponseEntity<?> serviceResponseResult = securityManager.generateServiceResponse();
@@ -23,7 +23,7 @@ public class AuthorizationServiceHelper {
 
 		// Check the proper security headers. If the check fails, return appropriate error since there is no need to continue
 		ResponseEntity<?> checkRequestValidity = securityManager.checkRequest(httpHeaders,
-				(String) serviceResponseResult.getBody());
+				(String) serviceResponseResult.getBody(), senderPlatformId);
 
 		return checkRequestValidity.getStatusCode() != HttpStatus.OK ? checkRequestValidity : serviceResponseResult;
 	}
