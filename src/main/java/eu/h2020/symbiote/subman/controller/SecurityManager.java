@@ -117,4 +117,22 @@ public class SecurityManager {
 
 		return securityHandler.getSatisfiedPoliciesIdentifiers(accessPoliciesMap, securityRequest);
 	}
+	
+	public SecurityRequest generateSecurityRequest(){
+		try {
+			return securityHandler.generateSecurityRequestUsingLocalCredentials();
+		} catch (SecurityHandlerException e) {
+			logger.info("SecurityManager failed to create SecurityRequest using local credentials!");
+			return null;
+		}
+	}
+	
+	public boolean verifyReceivedResponse(String serviceResponse, String componentIdentifier, String platformIdentifier){
+		try {
+			return securityHandler.isReceivedServiceResponseVerified(serviceResponse, componentIdentifier, platformIdentifier);
+		} catch (SecurityHandlerException e) {
+			logger.info("SecurityManager failed to verify received response!");
+			return false;
+		}
+	}
 }

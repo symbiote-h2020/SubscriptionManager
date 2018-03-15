@@ -13,6 +13,7 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
@@ -20,6 +21,9 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
+import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
+import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 
@@ -39,7 +43,10 @@ public class Consumers {
 
 	@Autowired
 	private FederatedResourceRepository fedResRepo;
-
+	
+	@Autowired
+	private SecurityManager securityManager;
+	
 	private MessageConverter messageConverter;
 	
 	@Autowired
@@ -86,6 +93,20 @@ public class Consumers {
 			
 			for (FederationMember fm : interestedFederation.getMembers()) {
 				// TODO send HTTP-POST notification to all other members..
+				SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+				if(securityRequest != null){
+					//TODO fetch federation member url and receiving platform id
+					String fmUrl = null;
+					String receivingPlatformId = null;
+					
+					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, rsMsg, fmUrl);
+					
+					//TODO check that serviceResponse is properly fetched
+					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", receivingPlatformId);
+					if (verifiedResponse) logger.info("Broadcast of addedOrUpdatedFederatedResource message successful!");
+					else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the response verification error!");
+				}
+				else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest failure!");
 			}
 		}
 	}
