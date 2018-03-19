@@ -34,6 +34,12 @@ public class RestInterface {
         this.securityManager = securityManager;
     }
 
+	/**
+	 * Endpoint for communication of federated SMs, when new resources are shared.
+	 * @param httpHeaders
+	 * @param receivedJson
+	 * @return
+	 */
 	@RequestMapping(value = "/sm/add", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesAddedOrUpdated(@RequestHeader HttpHeaders httpHeaders,
 			@RequestBody String receivedJson) {
@@ -57,6 +63,12 @@ public class RestInterface {
 
 	}
 
+	/**
+	 * Endpoint for communication of federated SMs, when shared resources are removed.
+	 * @param httpHeaders
+	 * @param receivedJson
+	 * @return
+	 */
 	@RequestMapping(value = "/sm/delete", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
