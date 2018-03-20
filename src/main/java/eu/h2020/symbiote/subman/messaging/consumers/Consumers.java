@@ -1,6 +1,9 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -54,6 +57,11 @@ public class Consumers {
 		messageConverter = new Jackson2JsonMessageConverter();
 	}
 
+	/**
+	 * Method receives created federations from FM component, and stores them to local MongoDB.
+	 * @param msg
+	 * @throws IOException
+	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.created}"))
 	public void federationCreated(Message msg) throws IOException {
 
@@ -62,6 +70,11 @@ public class Consumers {
 		logger.info("Federation with id: " + federation.getId() + " added to repository.");
 	}
 
+	/**
+	 * Method receives updated federations from FM component, and stores changes to local MongoDB.
+	 * @param msg
+	 * @throws IOException
+	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.changed}"))
 	public void federationChanged(Message msg) throws IOException {
 
@@ -70,6 +83,11 @@ public class Consumers {
 		logger.info("Federation with id: " + federation.getId() + " updated.");
 	}
 
+	/**
+	 * Method receives id of removed federation from FM component, and deletes it from MongoDB.
+	 * @param federationId
+	 * @throws IOException
+	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.deleted}"))
 	public void federationDeleted(String federationId) throws IOException {
 
@@ -77,57 +95,68 @@ public class Consumers {
 		logger.info("Federation with id: " + federationId + " removed from repository.");
 	}
 
+	/**
+	 * Method receives ResourcesAddedOrUpdated message from PlatformRegistry component.
+	 * It saves locally received federated resources to MongoDB, and forwards them to other interested federated platforms.
+	 * @param msg
+	 * @throws IOException
+	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.addOrUpdateFederatedResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.addOrUpdateFederatedResources}"))
 	public void addedOrUpdateFederatedResource(Message msg) throws IOException {
 
+		//convert received RMQ message to ResourcesAddedOrUpdatedMessage object
 		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);	
 		logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
 
+		//add received FederatedResource to local MongoDB
 		for(FederatedResource fr : rsMsg.getNewFederatedResources()){
 			fedResRepo.save(fr);
-			logger.info("Federated resource with id " + fr.getId()
+			logger.info("Federated resource with id " + fr.getSymbioteId()
 			+ " added to repository.");
 			
-			//TODO check if the whole list is for the same federation members
-			Federation interestedFederation = fedRepo.findOne(fr.getFederationId());
+			//use one set for FederationMembers that have to be notified, to escape double notifications since the same platform could be in more then one federation
+			Set<FederationMember> platformsToNotify = new HashSet<FederationMember>();
 			
-			for (FederationMember fm : interestedFederation.getMembers()) {
-				// TODO send HTTP-POST notification to all other members..
-				SecurityRequest securityRequest = securityManager.generateSecurityRequest();
-				if(securityRequest != null){
-					//TODO fetch federation member url and receiving platform id
-					String fmUrl = null;
-					String receivingPlatformId = null;
-					
-					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, rsMsg, fmUrl);
-					
-					//TODO check that serviceResponse is properly fetched
-					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", receivingPlatformId);
+			//iterate federationIds
+			for(String interestedFederationId : fr.getFederations()){
+				//fetch federation with corresponding federationId
+				Federation interestedFederation = fedRepo.findOne(interestedFederationId);
+				
+				//add all federationMembers to platformsToNotify set
+				for (FederationMember fm : interestedFederation.getMembers()) {
+					platformsToNotify.add(fm);
+				}
+			}
+			
+			//send HTTP-POST notification to all other members
+			//create securityRequest
+			SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+			if(securityRequest != null){
+				//if the creation of securityRequest is successful broadcast FedreatedResource to interested platforms 
+				for(FederationMember fedMem : platformsToNotify){
+						
+					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr)), fedMem.getInterworkingServiceURL());
+						
+					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", fedMem.getPlatformId());
 					if (verifiedResponse) logger.info("Broadcast of addedOrUpdatedFederatedResource message successful!");
 					else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the response verification error!");
 				}
-				else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest failure!");
 			}
+			else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
 		}
 	}
 
+	/**
+	 * Method receives ResourcesDeletedMessage message from PlatformRegistry component.
+	 * It saves locally received changes to MongoDB, and forwards info to other interested federated platforms.
+	 * @param msg
+	 * @throws IOException
+	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.removeFederatedResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.removeFederatedResources}"))
 	public void removeFederatedResource(Message msg) throws IOException {
 
 		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
 		logger.info("Received ResourcesDeletedMessage from Platform Registry");
 		
-		for(String id : rdDel.getDeletedIds()){
-			FederatedResource fedRes = fedResRepo.findOne(id);
-			Federation interestedFederation = fedRepo.findOne(fedRes.getFederationId());
-			
-			fedResRepo.delete(id);
-			logger.info("Federated resource with id " + id + " removed from repository.");
-			
-			//TODO check if the whole list is for the same federation members
-			for (FederationMember fm : interestedFederation.getMembers()) {
-				// TODO send HTTP-POST notification to all other members..
-			}
-		}
 	}
 }
