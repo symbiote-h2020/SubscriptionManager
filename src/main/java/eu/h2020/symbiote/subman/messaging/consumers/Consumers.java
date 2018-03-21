@@ -2,9 +2,7 @@ package eu.h2020.symbiote.subman.messaging.consumers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -190,7 +188,26 @@ public class Consumers {
 	public void removeFederatedResource(Message msg) throws IOException {
 
 		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
-		logger.info("Received ResourcesDeletedMessage from Platform Registry");		
+		logger.info("Received ResourcesDeletedMessage from Platform Registry");
+		
+		//<platformId,<federatedResourceId, federationsId>>
+		Map<String,Map<String,String>> platformMessages = new HashMap<String,Map<String,String>>();
+				
+		for(Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()){
+			FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
+			
+			for(String fedId : entry.getValue()){
+				//remove federationIds in which resource is unshared
+				toUpdate.getFederations().remove(fedId);
+				toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(fedId);				
+				//if federatedResource is unshared from all federations remove it? TODO check if necessary 
+				if(toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())fedResRepo.delete(entry.getKey());
+			}
+			
+			
+		}
+		
+		
 	}
 	
 	
