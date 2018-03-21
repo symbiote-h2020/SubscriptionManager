@@ -1,8 +1,12 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.logging.Log;
@@ -18,6 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
@@ -51,6 +58,8 @@ public class Consumers {
 	private SecurityManager securityManager;
 	
 	private MessageConverter messageConverter;
+	
+	private ObjectMapper mapper = new ObjectMapper();
 	
 	@Autowired
 	public Consumers() {
@@ -104,6 +113,12 @@ public class Consumers {
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.addOrUpdateFederatedResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.addOrUpdateFederatedResources}"))
 	public void addedOrUpdateFederatedResource(Message msg) throws IOException {
 
+		// Map<PlatformId, Map<FederatedResourceId, FederatedResource>>
+        Map<String, Map<String, FederatedResource>> platformMessages = new HashMap<>();
+        
+        //Map<PlatformId, interworkingServiceUrl>
+        Map<String, String> urls = new HashMap<String, String>();
+        
 		//convert received RMQ message to ResourcesAddedOrUpdatedMessage object
 		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);	
 		logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
@@ -114,36 +129,55 @@ public class Consumers {
 			logger.info("Federated resource with id " + fr.getSymbioteId()
 			+ " added to repository.");
 			
-			//use one set for FederationMembers that have to be notified, to escape double notifications since the same platform could be in more then one federation
-			Set<FederationMember> platformsToNotify = new HashSet<FederationMember>();
-			
-			//iterate federationIds
-			for(String interestedFederationId : fr.getFederations()){
-				//fetch federation with corresponding federationId
-				Federation interestedFederation = fedRepo.findOne(interestedFederationId);
-				
-				//add all federationMembers to platformsToNotify set
-				for (FederationMember fm : interestedFederation.getMembers()) {
-					platformsToNotify.add(fm);
-				}
+			//iterate interested federations
+			for (String interestedFederationId : fr.getFederations()) {
+
+                Federation interestedFederation = fedRepo.findOne(interestedFederationId);
+                
+                //add all federationMembers to platformsToNotify set
+                for (FederationMember fm : interestedFederation.getMembers()) {
+                	
+                	//if platform is not yet in a list for receiving notification, add it
+                	if (!platformMessages.containsKey(fm.getPlatformId())){
+                        platformMessages.put(fm.getPlatformId(), new HashMap<>());
+                        urls.put(fm.getPlatformId(), fm.getInterworkingServiceURL());
+                	}
+                	
+                	Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
+                	
+                	//if there is not entry in the platformMap for this federatedResource create it
+                	if (!platformMap.containsKey(fr.getSymbioteId())) {
+                		
+                		FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
+                		//TODO check if federationsSet is emptied
+                		clonedFr.clearPrivateInfo();
+                		platformMap.put(clonedFr.getSymbioteId(), clonedFr);
+                	}
+                	
+                	//add the federation info of currently iterated federation
+                	FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
+                	platformFederatedResource.shareToNewFederation(interestedFederationId,
+                            fr.getCloudResource().getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
+                }
 			}
-			
-			//send HTTP-POST notification to all other members
+		}
+				
+			//send HTTP-POST notifications to federated platforms
 			//create securityRequest
 			SecurityRequest securityRequest = securityManager.generateSecurityRequest();
 			if(securityRequest != null){
 				//if the creation of securityRequest is successful broadcast FedreatedResource to interested platforms 
-				for(FederationMember fedMem : platformsToNotify){
+				for(Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()){
+					
+					List<FederatedResource> resourcesForSending = new ArrayList<FederatedResource>(entry.getValue().values());
+					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending), urls.get(entry.getKey()));
 						
-					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr)), fedMem.getInterworkingServiceURL());
-						
-					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", fedMem.getPlatformId());
-					if (verifiedResponse) logger.info("Broadcast of addedOrUpdatedFederatedResource message successful!");
-					else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the response verification error!");
+					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", entry.getKey());
+					if (verifiedResponse) logger.info("Sending of addedOrUpdatedFederatedResource message to platform "+entry.getKey()+" successfull!");
+					else logger.info("Failed to send addedOrUpdatedFederatedResource message to platform "+entry.getKey()+" due to the response verification error!");
 				}
 			}
 			else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
-		}
 	}
 
 	/**
@@ -156,7 +190,33 @@ public class Consumers {
 	public void removeFederatedResource(Message msg) throws IOException {
 
 		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
-		logger.info("Received ResourcesDeletedMessage from Platform Registry");
-		
+		logger.info("Received ResourcesDeletedMessage from Platform Registry");		
 	}
+	
+	
+	
+	private String serializeFederatedResource(FederatedResource federatedResource) {
+        String string;
+
+        try {
+            string = mapper.writeValueAsString(federatedResource);
+        } catch (JsonProcessingException e) {
+            logger.info("Problem in serializing the federatedResource", e);
+            return null;
+        }
+        return string;
+    }
+
+    private FederatedResource deserializeFederatedResource(String s) {
+
+        FederatedResource federatedResource;
+
+        try {
+            federatedResource = mapper.readValue(s, FederatedResource.class);
+        } catch (IOException e) {
+            logger.info("Problem in deserializing the federatedResource", e);
+            return null;
+        }
+        return federatedResource;
+    }
 }
