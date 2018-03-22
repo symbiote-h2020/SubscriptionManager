@@ -3,6 +3,7 @@ package eu.h2020.symbiote.subman.messaging.consumers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,7 +148,6 @@ public class Consumers {
                 	if (!platformMap.containsKey(fr.getSymbioteId())) {
                 		
                 		FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
-                		//TODO check if federationsSet is emptied
                 		clonedFr.clearPrivateInfo();
                 		platformMap.put(clonedFr.getSymbioteId(), clonedFr);
                 	}
@@ -190,8 +190,10 @@ public class Consumers {
 		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
 		logger.info("Received ResourcesDeletedMessage from Platform Registry");
 		
-		//<platformId,<federatedResourceId, federationsId>>
-		Map<String,Map<String,String>> platformMessages = new HashMap<String,Map<String,String>>();
+		//<platformId,<federatedResourceId, Set<federationsId>>>
+		Map<String,Map<String, Set<String>>> platformMessages = new HashMap<String,Map<String,Set<String>>>();
+		//<platformId,interworkingServiceUrl
+		Map<String, String> urls = new HashMap<String, String>();
 				
 		for(Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()){
 			FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
@@ -203,11 +205,36 @@ public class Consumers {
 				//if federatedResource is unshared from all federations remove it? TODO check if necessary 
 				if(toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())fedResRepo.delete(entry.getKey());
 			}
-			
-			
+			//iterate federations for current FederatedResource
+			for(String federationId : entry.getValue()){
+				Federation currentFederation = fedRepo.findOne(federationId);
+				//iterate members
+				for(FederationMember fedMember : currentFederation.getMembers()){
+					if(!platformMessages.containsKey(fedMember.getPlatformId())){
+						platformMessages.put(fedMember.getPlatformId(), new HashMap<String, Set<String>>());
+						urls.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
+					}
+					Map<String, Set<String>> currentPlatformMessageMap = platformMessages.get(fedMember.getPlatformId());
+					if(!currentPlatformMessageMap.containsKey(entry.getKey()))currentPlatformMessageMap.put(entry.getKey(), new HashSet<String>());
+					currentPlatformMessageMap.get(entry.getKey()).add(federationId);
+				}
+			}
 		}
-		
-		
+		//map is ready to be sent
+		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+		if(securityRequest != null){
+			//if the creation of securityRequest is successful broadcast changes to interested platforms 
+			for(Map.Entry<String, Map<String, Set<String>>> entry : platformMessages.entrySet()){
+				
+				Map<String, Set<String>> deleteMessage = entry.getValue();
+				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest, new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
+					
+				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", entry.getKey());
+				if (verifiedResponse) logger.info("Sending of unsharedFederatedResource message to platform "+entry.getKey()+" successfull!");
+				else logger.info("Failed to send unsharedFederatedResource message to platform "+entry.getKey()+" due to the response verification error!");
+			}
+		}
+		else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
 	}
 	
 	
