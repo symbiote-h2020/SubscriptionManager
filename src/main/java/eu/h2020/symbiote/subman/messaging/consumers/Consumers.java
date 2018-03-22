@@ -52,21 +52,23 @@ public class Consumers {
 
 	@Autowired
 	private FederatedResourceRepository fedResRepo;
-	
+
 	@Autowired
 	private SecurityManager securityManager;
-	
+
 	private MessageConverter messageConverter;
-	
+
 	private ObjectMapper mapper = new ObjectMapper();
-	
+
 	@Autowired
 	public Consumers() {
 		messageConverter = new Jackson2JsonMessageConverter();
 	}
 
 	/**
-	 * Method receives created federations from FM component, and stores them to local MongoDB.
+	 * Method receives created federations from FM component, and stores them to
+	 * local MongoDB.
+	 * 
 	 * @param msg
 	 * @throws IOException
 	 */
@@ -79,7 +81,9 @@ public class Consumers {
 	}
 
 	/**
-	 * Method receives updated federations from FM component, and stores changes to local MongoDB.
+	 * Method receives updated federations from FM component, and stores changes
+	 * to local MongoDB.
+	 * 
 	 * @param msg
 	 * @throws IOException
 	 */
@@ -92,7 +96,9 @@ public class Consumers {
 	}
 
 	/**
-	 * Method receives id of removed federation from FM component, and deletes it from MongoDB.
+	 * Method receives id of removed federation from FM component, and deletes
+	 * it from MongoDB.
+	 * 
 	 * @param federationId
 	 * @throws IOException
 	 */
@@ -104,8 +110,10 @@ public class Consumers {
 	}
 
 	/**
-	 * Method receives ResourcesAddedOrUpdated message from PlatformRegistry component.
-	 * It saves locally received federated resources to MongoDB, and forwards them to other interested federated platforms.
+	 * Method receives ResourcesAddedOrUpdated message from PlatformRegistry
+	 * component. It saves locally received federated resources to MongoDB, and
+	 * forwards them to other interested federated platforms.
+	 * 
 	 * @param msg
 	 * @throws IOException
 	 */
@@ -113,74 +121,87 @@ public class Consumers {
 	public void addedOrUpdateFederatedResource(Message msg) throws IOException {
 
 		// Map<PlatformId, Map<FederatedResourceId, FederatedResource>>
-        Map<String, Map<String, FederatedResource>> platformMessages = new HashMap<>();
-        
-        //Map<PlatformId, interworkingServiceUrl>
-        Map<String, String> urls = new HashMap<String, String>();
-        
-		//convert received RMQ message to ResourcesAddedOrUpdatedMessage object
-		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);	
+		Map<String, Map<String, FederatedResource>> platformMessages = new HashMap<>();
+
+		// Map<PlatformId, interworkingServiceUrl>
+		Map<String, String> urls = new HashMap<String, String>();
+
+		// convert received RMQ message to ResourcesAddedOrUpdatedMessage object
+		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);
 		logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
 
-		//add received FederatedResource to local MongoDB
-		for(FederatedResource fr : rsMsg.getNewFederatedResources()){
+		// add received FederatedResource to local MongoDB
+		for (FederatedResource fr : rsMsg.getNewFederatedResources()) {
 			fedResRepo.save(fr);
-			logger.info("Federated resource with id " + fr.getSymbioteId()
-			+ " added to repository.");
-			
-			//iterate interested federations
+			logger.info("Federated resource with id " + fr.getSymbioteId() + " added to repository.");
+
+			// iterate interested federations
 			for (String interestedFederationId : fr.getFederations()) {
 
-                Federation interestedFederation = fedRepo.findOne(interestedFederationId);
-                
-                //add all federationMembers to platformsToNotify set
-                for (FederationMember fm : interestedFederation.getMembers()) {
-                	
-                	//if platform is not yet in a list for receiving notification, add it
-                	if (!platformMessages.containsKey(fm.getPlatformId())){
-                        platformMessages.put(fm.getPlatformId(), new HashMap<>());
-                        urls.put(fm.getPlatformId(), fm.getInterworkingServiceURL());
-                	}
-                	
-                	Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
-                	
-                	//if there is not entry in the platformMap for this federatedResource create it
-                	if (!platformMap.containsKey(fr.getSymbioteId())) {
-                		
-                		FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
-                		clonedFr.clearPrivateInfo();
-                		platformMap.put(clonedFr.getSymbioteId(), clonedFr);
-                	}
-                	
-                	//add the federation info of currently iterated federation
-                	FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
-                	platformFederatedResource.shareToNewFederation(interestedFederationId,
-                            fr.getCloudResource().getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
-                }
-			}
-		}
-				
-			//send HTTP-POST notifications to federated platforms
-			//create securityRequest
-			SecurityRequest securityRequest = securityManager.generateSecurityRequest();
-			if(securityRequest != null){
-				//if the creation of securityRequest is successful broadcast FedreatedResource to interested platforms 
-				for(Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()){
-					
-					List<FederatedResource> resourcesForSending = new ArrayList<FederatedResource>(entry.getValue().values());
-					ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending), urls.get(entry.getKey()));
-						
-					boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", entry.getKey());
-					if (verifiedResponse) logger.info("Sending of addedOrUpdatedFederatedResource message to platform "+entry.getKey()+" successfull!");
-					else logger.info("Failed to send addedOrUpdatedFederatedResource message to platform "+entry.getKey()+" due to the response verification error!");
+				Federation interestedFederation = fedRepo.findOne(interestedFederationId);
+
+				// add all federationMembers to platformsToNotify set
+				for (FederationMember fm : interestedFederation.getMembers()) {
+
+					// if platform is not yet in a list for receiving
+					// notification, add it
+					if (!platformMessages.containsKey(fm.getPlatformId())) {
+						platformMessages.put(fm.getPlatformId(), new HashMap<>());
+						urls.put(fm.getPlatformId(), fm.getInterworkingServiceURL());
+					}
+
+					Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
+
+					// if there is not entry in the platformMap for this
+					// federatedResource create it
+					if (!platformMap.containsKey(fr.getSymbioteId())) {
+
+						FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
+						clonedFr.clearPrivateInfo();
+						platformMap.put(clonedFr.getSymbioteId(), clonedFr);
+					}
+
+					// add the federation info of currently iterated federation
+					FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
+					platformFederatedResource.shareToNewFederation(interestedFederationId, fr.getCloudResource()
+							.getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
 				}
 			}
-			else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
+		}
+
+		// send HTTP-POST notifications to federated platforms
+		// create securityRequest
+		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+		if (securityRequest != null) {
+			// if the creation of securityRequest is successful broadcast
+			// FedreatedResource to interested platforms
+			for (Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()) {
+
+				List<FederatedResource> resourcesForSending = new ArrayList<FederatedResource>(
+						entry.getValue().values());
+				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(
+						securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
+						urls.get(entry.getKey()));
+
+				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(),
+						"subscriptionManager", entry.getKey());
+				if (verifiedResponse)
+					logger.info("Sending of addedOrUpdatedFederatedResource message to platform " + entry.getKey()
+							+ " successfull!");
+				else
+					logger.info("Failed to send addedOrUpdatedFederatedResource message to platform " + entry.getKey()
+							+ " due to the response verification error!");
+			}
+		} else
+			logger.info(
+					"Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
 	}
 
 	/**
-	 * Method receives ResourcesDeletedMessage message from PlatformRegistry component.
-	 * It saves locally received changes to MongoDB, and forwards info to other interested federated platforms.
+	 * Method receives ResourcesDeletedMessage message from PlatformRegistry
+	 * component. It saves locally received changes to MongoDB, and forwards
+	 * info to other interested federated platforms.
+	 * 
 	 * @param msg
 	 * @throws IOException
 	 */
@@ -189,78 +210,87 @@ public class Consumers {
 
 		ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
 		logger.info("Received ResourcesDeletedMessage from Platform Registry");
-		
-		//<platformId,<federatedResourceId, Set<federationsId>>>
-		Map<String,Map<String, Set<String>>> platformMessages = new HashMap<String,Map<String,Set<String>>>();
-		//<platformId,interworkingServiceUrl
+
+		// <platformId,<federatedResourceId, Set<federationsId>>>
+		Map<String, Map<String, Set<String>>> platformMessages = new HashMap<String, Map<String, Set<String>>>();
+		// <platformId,interworkingServiceUrl
 		Map<String, String> urls = new HashMap<String, String>();
-				
-		for(Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()){
+
+		for (Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()) {
 			FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
-			
-			for(String fedId : entry.getValue()){
-				//remove federationIds in which resource is unshared
+
+			for (String fedId : entry.getValue()) {
+				// remove federationIds in which resource is unshared
 				toUpdate.getFederations().remove(fedId);
-				toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(fedId);				
-				//if federatedResource is unshared from all federations remove it? TODO check if necessary 
-				if(toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())fedResRepo.delete(entry.getKey());
+				toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(fedId);
+				// if federatedResource is unshared from all federations remove it? TODO check if necessary
+				if (toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())
+					fedResRepo.delete(entry.getKey());
 			}
-			//iterate federations for current FederatedResource
-			for(String federationId : entry.getValue()){
+			// iterate federations for current FederatedResource
+			for (String federationId : entry.getValue()) {
 				Federation currentFederation = fedRepo.findOne(federationId);
-				//iterate members
-				for(FederationMember fedMember : currentFederation.getMembers()){
-					if(!platformMessages.containsKey(fedMember.getPlatformId())){
+				// iterate members
+				for (FederationMember fedMember : currentFederation.getMembers()) {
+					if (!platformMessages.containsKey(fedMember.getPlatformId())) {
 						platformMessages.put(fedMember.getPlatformId(), new HashMap<String, Set<String>>());
 						urls.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
 					}
-					Map<String, Set<String>> currentPlatformMessageMap = platformMessages.get(fedMember.getPlatformId());
-					if(!currentPlatformMessageMap.containsKey(entry.getKey()))currentPlatformMessageMap.put(entry.getKey(), new HashSet<String>());
+					Map<String, Set<String>> currentPlatformMessageMap = platformMessages
+							.get(fedMember.getPlatformId());
+					if (!currentPlatformMessageMap.containsKey(entry.getKey()))
+						currentPlatformMessageMap.put(entry.getKey(), new HashSet<String>());
 					currentPlatformMessageMap.get(entry.getKey()).add(federationId);
 				}
 			}
 		}
-		//map is ready to be sent
+
+		// sending created map to interested federated platforms
 		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
-		if(securityRequest != null){
-			//if the creation of securityRequest is successful broadcast changes to interested platforms 
-			for(Map.Entry<String, Map<String, Set<String>>> entry : platformMessages.entrySet()){
-				
+		if (securityRequest != null) {
+			// if the creation of securityRequest is successful broadcast changes to interested platforms
+			for (Map.Entry<String, Map<String, Set<String>>> entry : platformMessages.entrySet()) {
+
 				Map<String, Set<String>> deleteMessage = entry.getValue();
-				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest, new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
-					
-				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(), "subscriptionManager", entry.getKey());
-				if (verifiedResponse) logger.info("Sending of unsharedFederatedResource message to platform "+entry.getKey()+" successfull!");
-				else logger.info("Failed to send unsharedFederatedResource message to platform "+entry.getKey()+" due to the response verification error!");
+				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest,
+						new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
+
+				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(),
+						"subscriptionManager", entry.getKey());
+				if (verifiedResponse)
+					logger.info("Sending of unsharedFederatedResource message to platform " + entry.getKey()
+							+ " successfull!");
+				else
+					logger.info("Failed to send unsharedFederatedResource message to platform " + entry.getKey()
+							+ " due to the response verification error!");
 			}
-		}
-		else logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
+		} else
+			logger.info(
+					"Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
 	}
-	
-	
-	
+
 	private String serializeFederatedResource(FederatedResource federatedResource) {
-        String string;
+		String string;
 
-        try {
-            string = mapper.writeValueAsString(federatedResource);
-        } catch (JsonProcessingException e) {
-            logger.info("Problem in serializing the federatedResource", e);
-            return null;
-        }
-        return string;
-    }
+		try {
+			string = mapper.writeValueAsString(federatedResource);
+		} catch (JsonProcessingException e) {
+			logger.info("Problem in serializing the federatedResource", e);
+			return null;
+		}
+		return string;
+	}
 
-    private FederatedResource deserializeFederatedResource(String s) {
+	private FederatedResource deserializeFederatedResource(String s) {
 
-        FederatedResource federatedResource;
+		FederatedResource federatedResource;
 
-        try {
-            federatedResource = mapper.readValue(s, FederatedResource.class);
-        } catch (IOException e) {
-            logger.info("Problem in deserializing the federatedResource", e);
-            return null;
-        }
-        return federatedResource;
-    }
+		try {
+			federatedResource = mapper.readValue(s, FederatedResource.class);
+		} catch (IOException e) {
+			logger.info("Problem in deserializing the federatedResource", e);
+			return null;
+		}
+		return federatedResource;
+	}
 }
