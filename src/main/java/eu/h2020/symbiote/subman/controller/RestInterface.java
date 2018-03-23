@@ -4,8 +4,8 @@ import java.io.IOException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
+import eu.h2020.symbiote.model.mim.Federation;
+import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
+import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
+import eu.h2020.symbiote.subman.repositories.FederationRepository;
 
 /**
  * SubscriptionManager REST interface.
@@ -34,6 +39,21 @@ public class RestInterface {
 	private RabbitManager rabbitManager;
 
 	private SecurityManager securityManager;
+	
+	@Value("${rabbit.exchange.platformRegistry.name}")
+	private String PRexchange;
+	
+	@Value("${rabbit.routingKey.platformRegistry.addOrUpdateFederatedResources}")
+	private String PRaddedOrUpdatedFedResRK;
+	
+	@Value("${rabbit.routingKey.platformRegistry.removeFederatedResources}")
+	private String PRremovedFedResRK;
+	
+	@Autowired
+	private FederationRepository fedRepo;
+
+	@Autowired
+	private FederatedResourceRepository fedResRepo;
 	
 	public static ObjectMapper om = new ObjectMapper();
 	
@@ -54,10 +74,14 @@ public class RestInterface {
 			@RequestBody String receivedJson) {
 
 		logger.info("resourcesAddedOrUpdated HTTP-POST request received.");
+		ResourcesAddedOrUpdatedMessage receivedMessage = mapAddedOrUpdatedMessage(receivedJson);
+		if(receivedMessage == null) return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		
-		//TODO check if received platformId belongs to received federationId
-		
-		String senderPlatformId = null; //will receive in federatedResourceId
+		//assuming all received federatedResources are from the same request-sender platform
+		String senderPlatformId = receivedMessage.getNewFederatedResources().get(0).getPlatformId();
+		//for every FedRes check if sender platformId is in federation with federationId
+		if(!checkPlatformIdInFederationsCondition1(senderPlatformId, receivedMessage))return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+
 		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
 				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
 		if (securityResponse.getStatusCode() != HttpStatus.OK) {
@@ -65,7 +89,8 @@ public class RestInterface {
 			return securityResponse;
 		}
 
-		// TODO forward message to PR via RMQ (check if single or list)
+		//forward message to PR via RMQ
+		rabbitManager.sendAsyncMessageJSON(PRexchange, PRaddedOrUpdatedFedResRK, receivedMessage);
 
 		logger.info("Request succesfully executed!");
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
@@ -83,9 +108,14 @@ public class RestInterface {
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
 		logger.info("resourcesDeleted HTTP-POST request received.");
-		//TODO check if received platformId belongs to received federationId
+		ResourcesDeletedMessage receivedMessage = mapDeletedMessage(receivedJson);
+		if(receivedMessage == null) return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		//check that platform that shared received fedRes is in federations where the resource is being unshared(received in request)
+		if(!checkPlatformIdInFederationsCondition2(receivedMessage))return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		
-		String senderPlatformId = null; //will receive in federatedResourceId
+		//fetch any fedRes on its id and get platfromId
+		String senderPlatformId = fedResRepo.findOne(receivedMessage.getDeletedFederatedResourcesMap().keySet().iterator().next()).getPlatformId();
+		
 		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
 				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
 		if (securityResponse.getStatusCode() != HttpStatus.OK) {
@@ -93,7 +123,8 @@ public class RestInterface {
 			return securityResponse;
 		}
 
-		// TODO forward message to PR via RMQ (check if single or list)
+		//forward message to PR via RMQ (check if single or list)
+		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, receivedMessage);
 
 		logger.info("Request succesfully executed!");
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
@@ -135,4 +166,52 @@ public class RestInterface {
 		}
 		return received;
 	}
+	
+	private boolean checkPlatformIdInFederationsCondition1(String senderPlatformId, ResourcesAddedOrUpdatedMessage receivedMessage){
+		
+		boolean requestOk = false;
+		for(FederatedResource fedRes : receivedMessage.getNewFederatedResources()){
+			
+			for(String federationId : fedRes.getCloudResource().getFederationInfo().getSharingInformation().keySet()){
+				Federation current = fedRepo.findOne(federationId);
+				if(current == null)return false;
+				requestOk = false;
+				for (FederationMember fedMem : current.getMembers()){
+					if(fedMem.getPlatformId().equals(senderPlatformId)) {
+						requestOk = true;
+						break;
+					}
+				}
+				if(!requestOk)return false;
+			}			
+		}
+		return true;
+	}
+	
+	private boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
+		
+		boolean requestOk = false;
+		//for every received federatedResourceId
+		for (String fedResId : rdm.getDeletedFederatedResourcesMap().keySet()){
+			FederatedResource fedRes = fedResRepo.findOne(fedResId);
+			if(fedRes == null)return false;
+			//fetch platformId of platform that shared FederatedResource
+			String platformIdToCheck = fedRes.getPlatformId();
+			for(String fedId : rdm.getDeletedFederatedResourcesMap().get(fedResId)){
+				Federation fed = fedRepo.findOne(fedId);
+				if(fed == null)return false;
+				requestOk = false;
+				//check that every received federation where fedRes is unshared contains platform that shared the resource
+				for(FederationMember fm : fed.getMembers()){
+					if(fm.getPlatformId().equals(platformIdToCheck)){
+						requestOk = true;
+						break;
+					}
+				}
+				if(!requestOk)return false;
+			}			
+		}
+		return true;
+	}
+	
 }
