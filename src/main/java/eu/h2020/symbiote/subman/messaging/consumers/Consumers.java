@@ -139,7 +139,6 @@ public class Consumers {
 			for (String interestedFederationId : fr.getFederations()) {
 
 				Federation interestedFederation = fedRepo.findOne(interestedFederationId);
-
 				// add all federationMembers to platformsToNotify set
 				for (FederationMember fm : interestedFederation.getMembers()) {
 
@@ -183,6 +182,7 @@ public class Consumers {
 						securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
 						urls.get(entry.getKey()));
 
+				//verify serviceResponse
 				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(),
 						"subscriptionManager", entry.getKey());
 				if (verifiedResponse)
@@ -255,6 +255,7 @@ public class Consumers {
 				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest,
 						new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
 
+				//verify serviceResponse
 				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(),
 						"subscriptionManager", entry.getKey());
 				if (verifiedResponse)

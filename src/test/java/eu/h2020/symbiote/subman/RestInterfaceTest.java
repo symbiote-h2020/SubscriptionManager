@@ -53,6 +53,22 @@ public class RestInterfaceTest {
 	}
 	
 	@Test
+	public void resourceAddedOrUpdatedMapperExceptiontest(){
+		ObjectMapper om = new ObjectMapper();
+		
+		Object toSend = new Object();
+		try {
+			String json = om.writeValueAsString(toSend);
+
+			ResourcesAddedOrUpdatedMessage received = RestInterface.mapAddedOrUpdatedMessage(json);
+
+			assertEquals(null, received);
+		} catch (JsonProcessingException e) {
+			logger.info("ERROR mapping object to json!");
+		}
+	}
+	
+	@Test
 	public void resourceDeletedMappertest(){
 		ObjectMapper om = new ObjectMapper();
 		
@@ -69,6 +85,22 @@ public class RestInterfaceTest {
 
 			assertTrue(received.getDeletedFederatedResourcesMap().containsKey("fedResKey1"));
 			assertTrue(received.getDeletedFederatedResourcesMap().get("fedResKey1").size() == 2);
+		} catch (JsonProcessingException e) {
+			logger.info("ERROR mapping object to json!");
+		}
+	}
+	
+	@Test
+	public void resourceDeletedMapperExceptiontest(){
+		ObjectMapper om = new ObjectMapper();
+
+		Object toSend = new Object();
+		try {
+			String json = om.writeValueAsString(toSend);
+
+			ResourcesDeletedMessage received = RestInterface.mapDeletedMessage(json);
+
+			assertEquals(null, received);
 		} catch (JsonProcessingException e) {
 			logger.info("ERROR mapping object to json!");
 		}

@@ -69,7 +69,7 @@ public class RestInterface {
 	 * @param receivedJson
 	 * @return
 	 */
-	@RequestMapping(value = "/sm/add", method = RequestMethod.POST)
+	@RequestMapping(value = "/addOrUpdate", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesAddedOrUpdated(@RequestHeader HttpHeaders httpHeaders,
 			@RequestBody String receivedJson) {
 
@@ -104,7 +104,7 @@ public class RestInterface {
 	 * @param receivedJson
 	 * @return
 	 */
-	@RequestMapping(value = "/sm/delete", method = RequestMethod.POST)
+	@RequestMapping(value = "/delete", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
 		logger.info("resourcesDeleted HTTP-POST request received.");
