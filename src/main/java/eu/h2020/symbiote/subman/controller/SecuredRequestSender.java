@@ -30,6 +30,7 @@ public class SecuredRequestSender {
 	public static ResponseEntity<?> sendSecuredResourcesAddedOrUpdated(SecurityRequest securityRequest, ResourcesAddedOrUpdatedMessage rsMsg, String interworkingServiceUrl) {
 
 		String url = interworkingServiceUrl+"/subscriptionManager"+"/addOrUpdate";
+		
 		Map<String, String> securityRequestHeaders;
 		HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -94,5 +95,5 @@ public class SecuredRequestSender {
 			return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
-
+	
 }
