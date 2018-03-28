@@ -49,18 +49,18 @@ public class RestInterface {
 	@Value("${rabbit.routingKey.platformRegistry.removeFederatedResources}")
 	private String PRremovedFedResRK;
 	
-	@Autowired
 	private FederationRepository fedRepo;
 
-	@Autowired
 	private FederatedResourceRepository fedResRepo;
 	
 	public static ObjectMapper om = new ObjectMapper();
 	
 	@Autowired
-    public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager) {
+    public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager, FederationRepository fedRepo, FederatedResourceRepository fedResRepo) {
         this.rabbitManager = rabbitManager;
         this.securityManager = securityManager;
+        this.fedRepo = fedRepo;
+        this.fedResRepo = fedResRepo;
     }
 
 	/**
@@ -167,7 +167,7 @@ public class RestInterface {
 		return received;
 	}
 	
-	private boolean checkPlatformIdInFederationsCondition1(String senderPlatformId, ResourcesAddedOrUpdatedMessage receivedMessage){
+	public boolean checkPlatformIdInFederationsCondition1(String senderPlatformId, ResourcesAddedOrUpdatedMessage receivedMessage){
 		
 		boolean requestOk = false;
 		for(FederatedResource fedRes : receivedMessage.getNewFederatedResources()){
@@ -188,7 +188,7 @@ public class RestInterface {
 		return true;
 	}
 	
-	private boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
+	public boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
 		
 		boolean requestOk = false;
 		//for every received federatedResourceId
