@@ -124,7 +124,7 @@ public class Consumers {
 		Map<String, Map<String, FederatedResource>> platformMessages = new HashMap<>();
 
 		// Map<PlatformId, interworkingServiceUrl>
-		Map<String, String> urls = new HashMap<String, String>();
+		Map<String, String> urls = new HashMap<>();
 
 		// convert received RMQ message to ResourcesAddedOrUpdatedMessage object
 		ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);
@@ -139,6 +139,12 @@ public class Consumers {
 			for (String interestedFederationId : fr.getFederations()) {
 
 				Federation interestedFederation = fedRepo.findOne(interestedFederationId);
+
+				if (interestedFederation == null) {
+                    logger.info("The federation with id " + interestedFederationId + " was not found in the federation repository");
+                    continue;
+                }
+
 				// add all federationMembers to platformsToNotify set
 				for (FederationMember fm : interestedFederation.getMembers()) {
 
@@ -172,17 +178,19 @@ public class Consumers {
 		// create securityRequest
 		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
 		if (securityRequest != null) {
+			logger.debug("Security Request created successfully!");
+
 			// if the creation of securityRequest is successful broadcast
-			// FedreatedResource to interested platforms
+			// FederatedResource to interested platforms
 			for (Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()) {
 
-				List<FederatedResource> resourcesForSending = new ArrayList<FederatedResource>(
+				List<FederatedResource> resourcesForSending = new ArrayList<>(
 						entry.getValue().values());
 				ResponseEntity<?> serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(
 						securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
 						urls.get(entry.getKey()));
 
-				//verify serviceResponse
+				// verify serviceResponse
 				boolean verifiedResponse = securityManager.verifyReceivedResponse(serviceResponse.getBody().toString(),
 						"subscriptionManager", entry.getKey());
 				if (verifiedResponse)
@@ -218,6 +226,10 @@ public class Consumers {
 
 		for (Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()) {
 			FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
+            if (toUpdate == null) {
+                logger.info("The federatedResource " + entry.getKey() + " was not found in the federatedResource repository");
+                continue;
+            }
 
 			for (String fedId : entry.getValue()) {
 				// remove federationIds in which resource is unshared
@@ -230,6 +242,12 @@ public class Consumers {
 			// iterate federations for current FederatedResource
 			for (String federationId : entry.getValue()) {
 				Federation currentFederation = fedRepo.findOne(federationId);
+
+				if (currentFederation == null) {
+				    logger.info("The federation with id " + federationId + " was not found in the federation repository");
+                    continue;
+                }
+
 				// iterate members
 				for (FederationMember fedMember : currentFederation.getMembers()) {
 					if (!platformMessages.containsKey(fedMember.getPlatformId())) {
@@ -248,7 +266,9 @@ public class Consumers {
 		// sending created map to interested federated platforms
 		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
 		if (securityRequest != null) {
-			// if the creation of securityRequest is successful broadcast changes to interested platforms
+            logger.debug("Security Request created successfully!");
+
+            // if the creation of securityRequest is successful broadcast changes to interested platforms
 			for (Map.Entry<String, Map<String, Set<String>>> entry : platformMessages.entrySet()) {
 
 				Map<String, Set<String>> deleteMessage = entry.getValue();

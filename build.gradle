@@ -1,8 +1,8 @@
 // initial extensions to gradle
 buildscript {
     ext {
-        springBootVersion = '1.5.9.RELEASE'
-        springCloudVersion = 'Dalston.SR4'
+        springBootVersion = '1.5.12.RELEASE'
+        springCloudVersion = 'Dalston.SR5'
     }
     repositories {
         mavenCentral()
@@ -87,19 +87,9 @@ dependencies {
     compile('org.springframework.boot:spring-boot-starter-web')
     compile("org.springframework.boot:spring-boot-starter-data-mongodb")
 
-    // gui page
-    compile('org.springframework.boot:spring-boot-starter-thymeleaf')
-    compile("org.springframework.boot:spring-boot-starter-security")
-    compile('org.webjars:jquery:3.2.1')
-    compile('org.webjars:bootstrap:3.3.7-1')
-
-    // other
-    compile('commons-validator:commons-validator:1.6')
-
     // tests only
     testCompile('junit:junit:4.+')
     testCompile('org.springframework.boot:spring-boot-starter-test')
-    testCompile('org.springframework.security:spring-security-test')
 }
 
 // code quality below
@@ -126,4 +116,5 @@ dependencyCheck {
 }
 
 // including code quality extensions into the build
-check.dependsOn(jacocoTestReport, 'dependencyCheck')
+// check.dependsOn(jacocoTestReport, 'dependencyCheck')
+check.dependsOn(jacocoTestReport)
