@@ -29,7 +29,7 @@ public class SecuredRequestSender {
 	
 	public static ResponseEntity<?> sendSecuredResourcesAddedOrUpdated(SecurityRequest securityRequest, ResourcesAddedOrUpdatedMessage rsMsg, String interworkingServiceUrl) {
 
-		String url = interworkingServiceUrl+"/subscriptionManager"+"/addOrUpdate";
+		String url = interworkingServiceUrl.replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate";
 		
 		Map<String, String> securityRequestHeaders;
 		HttpHeaders httpHeaders = new HttpHeaders();
@@ -39,32 +39,34 @@ public class SecuredRequestSender {
 			for (Map.Entry<String, String> entry : securityRequestHeaders.entrySet()) {
 	            httpHeaders.add(entry.getKey(), entry.getValue());
 	        }
-	        logger.info("request headers: " + httpHeaders);
+	        logger.debug("request headers: " + httpHeaders);
 	        
 	        HttpEntity<String> httpEntity = new HttpEntity<>(om.writeValueAsString(rsMsg), httpHeaders);
 	        ResponseEntity<?> responseEntity = null;
-	        try{
-	            responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
-	            
-	            logger.info("response = " + responseEntity);
-	            logger.info("headers = " + responseEntity.getHeaders());
-	            logger.info("body = " + responseEntity.getBody());
+	        try {
+				logger.debug("url = " + url);
+
+				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
+
+	            logger.debug("response = " + responseEntity);
+	            logger.debug("headers = " + responseEntity.getHeaders());
+	            logger.debug("body = " + responseEntity.getBody());
 	            
 	            return responseEntity;
 	        }  catch (Exception e) {
-	            logger.info("Error executing HTTP POST request!");
+	            logger.warn("Error executing HTTP POST request!");
 	            return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 	        }
 	        
 		} catch (JsonProcessingException e) {
-			logger.info("Error parsing securityRequest headers!");
+			logger.warn("Error parsing securityRequest headers!");
 			return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 	
 	public static ResponseEntity<?> sendSecuredResourcesDeleted(SecurityRequest securityRequest, ResourcesDeletedMessage rsMsg, String interworkingServiceUrl) {
 
-		String url = interworkingServiceUrl+"/subscriptionManager"+"/delete";
+		String url = interworkingServiceUrl.replaceAll("/+$", "") + "/subscriptionManager" + "/delete";
 		Map<String, String> securityRequestHeaders;
 		HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
@@ -73,25 +75,27 @@ public class SecuredRequestSender {
 			for (Map.Entry<String, String> entry : securityRequestHeaders.entrySet()) {
 	            httpHeaders.add(entry.getKey(), entry.getValue());
 	        }
-	        logger.info("request headers: " + httpHeaders);
+	        logger.debug("request headers: " + httpHeaders);
 	        
 	        HttpEntity<String> httpEntity = new HttpEntity<>(om.writeValueAsString(rsMsg), httpHeaders);
 	        ResponseEntity<?> responseEntity = null;
-	        try{
-	            responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
-	            
-	            logger.info("response = " + responseEntity);
-	            logger.info("headers = " + responseEntity.getHeaders());
-	            logger.info("body = " + responseEntity.getBody());
+	        try {
+				logger.debug("url = " + url);
+
+				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
+
+				logger.debug("response = " + responseEntity);
+	            logger.debug("headers = " + responseEntity.getHeaders());
+	            logger.debug("body = " + responseEntity.getBody());
 	            
 	            return responseEntity;
 	        }  catch (Exception e) {
-	            logger.info("Error executing HTTP POST request!");
+	            logger.warn("Error executing HTTP POST request!");
 	            return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 	        }
 	        
 		} catch (JsonProcessingException e) {
-			logger.info("Error parsing securityRequest headers!");
+			logger.warn("Error parsing securityRequest headers!");
 			return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}

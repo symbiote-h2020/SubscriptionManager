@@ -104,7 +104,7 @@ public class RestInterfaceTest {
 	
 	@Test
 	public void resourcesDeletedBadRequestMapperFailure(){
-		assertEquals(new ResponseEntity<>(HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), "sss"));
+		assertEquals(new ResponseEntity<>("Received message is null", HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), "sss"));
 	}
 	
 	@Test
@@ -116,7 +116,8 @@ public class RestInterfaceTest {
 	@Test
 	public void resourcesDeletedBadRequestConditionFailure() throws JsonProcessingException{
 		when(fedResRepo.findOne(any(String.class))).thenReturn(null);
-		assertEquals(new ResponseEntity<>(HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
+		assertEquals(new ResponseEntity<>("The platform that shared the resource is not in the federation",
+				HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
 	}
 	
 	@Test

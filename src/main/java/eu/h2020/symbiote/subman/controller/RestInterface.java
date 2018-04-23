@@ -69,7 +69,7 @@ public class RestInterface {
 	 * @param receivedJson
 	 * @return
 	 */
-	@RequestMapping(value = "/addOrUpdate", method = RequestMethod.POST)
+	@RequestMapping(value = "/subscriptionManager/addOrUpdate", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesAddedOrUpdated(@RequestHeader HttpHeaders httpHeaders,
 			@RequestBody String receivedJson) {
 
@@ -104,26 +104,32 @@ public class RestInterface {
 	 * @param receivedJson
 	 * @return
 	 */
-	@RequestMapping(value = "/delete", method = RequestMethod.POST)
+	@RequestMapping(value = "/subscriptionManager/delete", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
 		logger.info("resourcesDeleted HTTP-POST request received.");
 		ResourcesDeletedMessage receivedMessage = mapDeletedMessage(receivedJson);
-		if(receivedMessage == null) return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-		//check that platform that shared received fedRes is in federations where the resource is being unshared(received in request)
-		if(!checkPlatformIdInFederationsCondition2(receivedMessage))return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-		
-		//fetch any fedRes on its id and get platfromId
+
+		if(receivedMessage == null) return new ResponseEntity<>("Received message is null", HttpStatus.BAD_REQUEST);
+
+        //check that platform that shared received fedRes is in federations where the resource is being unshared(received in request)
+		if(!checkPlatformIdInFederationsCondition2(receivedMessage))
+		    return new ResponseEntity<>("The platform that shared the resource is not in the federation",
+                    HttpStatus.BAD_REQUEST);
+
+        //fetch any fedRes on its id and get platfromId
 		String senderPlatformId = fedResRepo.findOne(receivedMessage.getDeletedFederatedResourcesMap().keySet().iterator().next()).getPlatformId();
-		
-		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
+
+        ResponseEntity<?> securityResponse = AuthorizationServiceHelper
 				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
 		if (securityResponse.getStatusCode() != HttpStatus.OK) {
 			logger.info("Request failed authorization check!");
 			return securityResponse;
 		}
 
-		//forward message to PR via RMQ (check if single or list)
+        logger.info("5");
+
+        //forward message to PR via RMQ (check if single or list)
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, receivedMessage);
 
 		logger.info("Request succesfully executed!");
@@ -131,13 +137,13 @@ public class RestInterface {
 				(String) securityResponse.getBody());
 	}
 	
-	@RequestMapping(value = "/sm/subscribe", method = RequestMethod.POST)
+	@RequestMapping(value = "/subscriptionManager/subscribe", method = RequestMethod.POST)
 	public ResponseEntity<?> subscriptionDefinition(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 		//TODO implement subscription model and receiving definition request
 		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
 	}
 	
-	@RequestMapping(value = "/sm/unsubscribe", method = RequestMethod.POST)
+	@RequestMapping(value = "/subscriptionManager/unsubscribe", method = RequestMethod.POST)
 	public ResponseEntity<?> subscriptionRemoval(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 		//TODO implement subscription model and receiving definition request
 		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
@@ -189,18 +195,21 @@ public class RestInterface {
 	}
 	
 	public boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
-		
-		boolean requestOk = false;
+
+	    boolean requestOk = false;
 		//for every received federatedResourceId
-		for (String fedResId : rdm.getDeletedFederatedResourcesMap().keySet()){
+		for (String fedResId : rdm.getDeletedFederatedResourcesMap().keySet()) {
+		    logger.debug(fedResId);
 			FederatedResource fedRes = fedResRepo.findOne(fedResId);
-			if(fedRes == null)return false;
+			if(fedRes == null) return false;
+
 			//fetch platformId of platform that shared FederatedResource
 			String platformIdToCheck = fedRes.getPlatformId();
 			for(String fedId : rdm.getDeletedFederatedResourcesMap().get(fedResId)){
 				Federation fed = fedRepo.findOne(fedId);
-				if(fed == null)return false;
-				requestOk = false;
+				if(fed == null) return false;
+
+                requestOk = false;
 				//check that every received federation where fedRes is unshared contains platform that shared the resource
 				for(FederationMember fm : fed.getMembers()){
 					if(fm.getPlatformId().equals(platformIdToCheck)){
@@ -208,7 +217,8 @@ public class RestInterface {
 						break;
 					}
 				}
-				if(!requestOk)return false;
+
+				if(!requestOk) return false;
 			}			
 		}
 		return true;

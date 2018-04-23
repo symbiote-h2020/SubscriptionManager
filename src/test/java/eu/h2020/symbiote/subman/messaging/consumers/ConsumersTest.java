@@ -6,6 +6,8 @@ import eu.h2020.symbiote.subman.repositories.FederationRepository;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +33,9 @@ public class ConsumersTest {
     @Value("${rabbit.routingKey.federation.created}")
     String federationCreatedKey;
 
+    @Value("${rabbit.routingKey.federation.deleted}")
+    String federationDeletedKey;
+
     @Autowired
     FederationRepository federationRepository;
 
@@ -43,7 +48,7 @@ public class ConsumersTest {
     }
 
     @Test
-    public void federationCreated() throws InterruptedException {
+    public void federationCreatedTest() throws InterruptedException {
         Federation federation = new Federation();
 
         federation.setId("exampleId");
@@ -53,5 +58,26 @@ public class ConsumersTest {
         TimeUnit.MILLISECONDS.sleep(400);
         List<Federation> federations = federationRepository.findAll();
         assertEquals(1, federations.size());
+    }
+
+    @Test
+    public void federationDeletedTest() throws InterruptedException {
+        String federationId = "exampleId";
+        Federation federation = new Federation();
+
+        federation.setId(federationId);
+        federation.setName("FederationName");
+        federationRepository.save(federation);
+
+        while (federationRepository.findAll().size() == 0)
+            TimeUnit.MILLISECONDS.sleep(100);
+
+        RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
+        Message message = new Message(federationId.getBytes(), new MessageProperties());
+        rabbitTemplate.send(federationExchange, federationDeletedKey, message);
+
+        TimeUnit.MILLISECONDS.sleep(400);
+        List<Federation> federations = federationRepository.findAll();
+        assertEquals(0, federations.size());
     }
 }

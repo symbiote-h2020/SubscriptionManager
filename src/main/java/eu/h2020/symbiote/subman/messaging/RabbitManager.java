@@ -134,5 +134,8 @@ public class RabbitManager {
 		}
 	}
 
+    public RabbitTemplate getRabbitTemplate() {
+        return rabbitTemplate;
+    }
 }
 
