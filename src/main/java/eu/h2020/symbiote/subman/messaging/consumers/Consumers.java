@@ -162,6 +162,9 @@ public class Consumers {
                     // add all federationMembers to platformsToNotify set
                     for (FederationMember fm : interestedFederation.getMembers()) {
 
+                    	//to avoid platform sending HTTP request to itself
+                    	if(fm.getPlatformId().equals(this.platformId)) continue;
+                    	
                         // if platform is not yet in a list for receiving
                         // notification, add it
                         if (!platformMessages.containsKey(fm.getPlatformId())) {
@@ -291,6 +294,10 @@ public class Consumers {
 
                     // iterate members
                     for (FederationMember fedMember : currentFederation.getMembers()) {
+                    	
+                    	//to avoid platform sending HTTP request to itself
+                    	if(fedMember.getPlatformId().equals(this.platformId)) continue;
+                    	
                         if (!platformMessages.containsKey(fedMember.getPlatformId())) {
                             platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
                             urls.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
