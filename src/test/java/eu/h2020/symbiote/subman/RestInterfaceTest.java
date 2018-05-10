@@ -270,8 +270,7 @@ public class RestInterfaceTest {
 		when(fedResRepo.findOne(any(String.class))).thenReturn(fr);
 		when(fedRepo.findOne(any(String.class))).thenReturn(f);
 		
-		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
-		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.UNAUTHORIZED));
+		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.UNAUTHORIZED));
 		assertEquals(new ResponseEntity<>(HttpStatus.UNAUTHORIZED), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
 	}
 	
