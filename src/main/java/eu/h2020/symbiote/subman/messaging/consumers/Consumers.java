@@ -357,7 +357,7 @@ public class Consumers {
         }
 	}
 
-	private String serializeFederatedResource(FederatedResource federatedResource) {
+	protected String serializeFederatedResource(FederatedResource federatedResource) {
 		String string;
 
 		try {
@@ -369,7 +369,7 @@ public class Consumers {
 		return string;
 	}
 
-	private FederatedResource deserializeFederatedResource(String s) {
+	protected FederatedResource deserializeFederatedResource(String s) {
 
 		FederatedResource federatedResource;
 
