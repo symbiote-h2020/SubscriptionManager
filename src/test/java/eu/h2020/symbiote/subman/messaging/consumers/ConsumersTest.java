@@ -1,5 +1,9 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
+import eu.h2020.symbiote.cloud.model.internal.CloudResource;
+import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
+import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
+import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
@@ -32,6 +36,9 @@ public class ConsumersTest {
 
     @Value("${rabbit.routingKey.federation.created}")
     String federationCreatedKey;
+    
+    @Value("${rabbit.routingKey.federation.changed}")
+    String federationChangedKey;
 
     @Value("${rabbit.routingKey.federation.deleted}")
     String federationDeletedKey;
@@ -59,6 +66,27 @@ public class ConsumersTest {
         List<Federation> federations = federationRepository.findAll();
         assertEquals(1, federations.size());
     }
+    
+    @Test
+    public void federationChangedTest() throws InterruptedException {
+        Federation federation = new Federation();
+
+        federation.setId("exampleId");
+        federation.setName("FederationName");
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+
+        TimeUnit.MILLISECONDS.sleep(400);
+        
+        //changing of created federation
+        federation.setId("exampleId");
+        federation.setName("FederationName1");
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        List<Federation> federations = federationRepository.findAll();
+        assertEquals(1, federations.size());
+        assertEquals("FederationName1", federations.get(0).getName());
+    }
 
     @Test
     public void federationDeletedTest() throws InterruptedException {
@@ -79,5 +107,27 @@ public class ConsumersTest {
         TimeUnit.MILLISECONDS.sleep(400);
         List<Federation> federations = federationRepository.findAll();
         assertEquals(0, federations.size());
+    }
+    
+    @Test
+    public void serializationTest() {
+    	Resource r = new Resource();
+    	r.setId("id1");
+    	r.setName("dummy");
+    	r.setInterworkingServiceURL("dummyURL");
+    	CloudResource cr = new CloudResource();
+    	cr.setInternalId("id1");
+    	cr.setPluginId("pg1");
+    	cr.setResource(r);
+    	FederationInfoBean fib = new FederationInfoBean();
+    	fib.setSymbioteId("id@shs");
+    	cr.setFederationInfo(fib);
+        FederatedResource fr = new FederatedResource(cr);
+        Consumers con = new Consumers();
+        
+        String serialized = con.serializeFederatedResource(fr);
+        FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
+        
+        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());      
     }
 }
