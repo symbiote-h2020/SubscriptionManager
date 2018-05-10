@@ -3,9 +3,12 @@ package eu.h2020.symbiote.subman.messaging.consumers;
 import eu.h2020.symbiote.cloud.model.internal.CloudResource;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
+import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
+import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
+import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +23,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
@@ -33,6 +39,9 @@ public class ConsumersTest {
 
     @Value("${rabbit.exchange.federation}")
     String federationExchange;
+    
+    @Value("${rabbit.exchange.subscriptionManager.name}")
+    String subscriptionManagerExchange;
 
     @Value("${rabbit.routingKey.federation.created}")
     String federationCreatedKey;
@@ -42,16 +51,41 @@ public class ConsumersTest {
 
     @Value("${rabbit.routingKey.federation.deleted}")
     String federationDeletedKey;
+    
+    @Value("${rabbit.routingKey.subscriptionManager.addOrUpdateFederatedResources}")
+    String resAddedOrUpdatedRk;
+    
+    @Value("${rabbit.routingKey.subscriptionManager.removeFederatedResources}")
+    String resRemovedRk;
 
     @Autowired
     FederationRepository federationRepository;
+    
+    @Autowired
+    FederatedResourceRepository fedResRepo;
 
     @Autowired
     RabbitManager rabbitManager;
 
+    static Resource resDummy;
+	static CloudResource dummy;
+	static FederatedResource fr;
+	
     @Before
     public void setup() {
         federationRepository.deleteAll();
+        resDummy = new Resource();
+		resDummy.setInterworkingServiceURL("dummyUrl");
+		dummy = new CloudResource();
+		dummy.setResource(resDummy);
+		FederationInfoBean fib = new FederationInfoBean();
+		Map<String, ResourceSharingInformation> map = new HashMap<>();
+		map.put("fed1", null);
+		fib.setSharingInformation(map);
+		dummy.setFederationInfo(fib);
+		
+		fr = new FederatedResource("a@a",dummy);
+		fr.setRestUrl("aa");
     }
 
     @Test
@@ -107,6 +141,20 @@ public class ConsumersTest {
         TimeUnit.MILLISECONDS.sleep(400);
         List<Federation> federations = federationRepository.findAll();
         assertEquals(0, federations.size());
+    }
+    
+    @Test
+    public void addedOrUpdatedFederatedResourceLocalMongoStorageTest() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());
+    	
     }
     
     @Test
