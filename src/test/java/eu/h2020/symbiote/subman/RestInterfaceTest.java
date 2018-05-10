@@ -6,6 +6,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,6 +36,7 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.subman.controller.RestInterface;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
@@ -255,7 +257,9 @@ public class RestInterfaceTest {
 
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
-		assertEquals(HttpStatus.OK,restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)).getStatusCode());
+		HttpHeaders headers = new HttpHeaders();
+		headers.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(null));
+		assertEquals(new ResponseEntity<>(headers, HttpStatus.OK),restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
 	}
 	
 	@Test
@@ -281,7 +285,9 @@ public class RestInterfaceTest {
 		
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
-		assertEquals(HttpStatus.OK, restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)).getStatusCode());
+		HttpHeaders headers = new HttpHeaders();
+		headers.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(null));
+		assertEquals(new ResponseEntity<>(headers, HttpStatus.OK), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
 	}
 
 }
