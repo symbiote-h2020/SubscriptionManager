@@ -11,7 +11,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -35,6 +35,7 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.subman.controller.AuthorizationServiceHelper;
 import eu.h2020.symbiote.subman.controller.RestInterface;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
@@ -67,13 +68,15 @@ public class RestInterfaceTest {
 	static ResourcesDeletedMessage deleted;
 	static FederatedResource fr;
 	static Federation f;
+	static Resource resDummy;
+	static CloudResource dummy;
 	
-    @BeforeClass
-    public static void setUp() {
+    @Before
+    public void setUp() {
     	
-    	Resource resDummy = new Resource();
+    	resDummy = new Resource();
 		resDummy.setInterworkingServiceURL("dummyUrl");
-		CloudResource dummy = new CloudResource();
+		dummy = new CloudResource();
 		dummy.setResource(resDummy);
 		FederationInfoBean fib = new FederationInfoBean();
 		Map<String, ResourceSharingInformation> map = new HashMap<>();
@@ -232,6 +235,27 @@ public class RestInterfaceTest {
 		} catch (JsonProcessingException e) {
 			logger.info("ERROR mapping object to json!");
 		}
+	}
+	
+	@Test
+	public void resourcesAddedOrUpdatedUnAuthorized() throws JsonProcessingException{
+		when(fedRepo.findOne("fed1")).thenReturn(f);
+		fr = new FederatedResource("a@p1",dummy);
+		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.UNAUTHORIZED));
+		assertEquals(new ResponseEntity<>(HttpStatus.UNAUTHORIZED), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
+	}
+	
+	@Test
+	public void resourcesAddedOrUpdatedAuthorizedOk() throws JsonProcessingException{
+		when(fedRepo.findOne("fed1")).thenReturn(f);
+		fr = new FederatedResource("a@p1",dummy);
+		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+		//when(AuthorizationServiceHelper.checkSecurityRequestAndCreateServiceResponse(any(SecurityManager.class), any(HttpHeaders.class), any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		assertEquals(HttpStatus.OK,restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)).getStatusCode());
 	}
 
 }
