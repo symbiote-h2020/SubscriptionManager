@@ -128,6 +128,6 @@ public class ConsumersTest {
         String serialized = con.serializeFederatedResource(fr);
         FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
         
-        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());      
+        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
     }
 }
