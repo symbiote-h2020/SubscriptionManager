@@ -1,15 +1,15 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
-import eu.h2020.symbiote.cloud.model.internal.CloudResource;
-import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
-import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
-import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
-import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
-import eu.h2020.symbiote.model.cim.Resource;
-import eu.h2020.symbiote.model.mim.Federation;
-import eu.h2020.symbiote.subman.messaging.RabbitManager;
-import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
-import eu.h2020.symbiote.subman.repositories.FederationRepository;
+import static org.junit.Assert.assertEquals;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -23,13 +23,17 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.*;
+import eu.h2020.symbiote.cloud.model.internal.CloudResource;
+import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
+import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
+import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
+import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
+import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
+import eu.h2020.symbiote.model.cim.Resource;
+import eu.h2020.symbiote.model.mim.Federation;
+import eu.h2020.symbiote.subman.messaging.RabbitManager;
+import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
+import eu.h2020.symbiote.subman.repositories.FederationRepository;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -74,13 +78,14 @@ public class ConsumersTest {
     @Before
     public void setup() {
         federationRepository.deleteAll();
+        fedResRepo.deleteAll();
         resDummy = new Resource();
 		resDummy.setInterworkingServiceURL("dummyUrl");
 		dummy = new CloudResource();
 		dummy.setResource(resDummy);
 		FederationInfoBean fib = new FederationInfoBean();
 		Map<String, ResourceSharingInformation> map = new HashMap<>();
-		map.put("fed1", null);
+		map.put("todel", null);
 		fib.setSharingInformation(map);
 		dummy.setFederationInfo(fib);
 		
@@ -153,8 +158,27 @@ public class ConsumersTest {
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
     	TimeUnit.MILLISECONDS.sleep(400);
     	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
+    }
+    
+    @Test
+    public void deletedFederatedResourceLocalMongoDeletitionTest() throws InterruptedException{
+    	Set<String> federationDummies = new HashSet<>();
+    	federationDummies.add("todel");
+    	fr.setFederations(federationDummies);
+    	fedResRepo.save(fr);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
     	
+    	Map<String, Set<String>> toDelete = new HashMap<>();
+    	toDelete.put("a@a", federationDummies);
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
     }
     
     @Test
