@@ -35,7 +35,6 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
-import eu.h2020.symbiote.subman.controller.AuthorizationServiceHelper;
 import eu.h2020.symbiote.subman.controller.RestInterface;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
@@ -238,10 +237,11 @@ public class RestInterfaceTest {
 	}
 	
 	@Test
-	public void resourcesAddedOrUpdatedUnAuthorized() throws JsonProcessingException{
+	public void resourcesAddedOrUpdatedUnauthorized() throws JsonProcessingException{
 		when(fedRepo.findOne("fed1")).thenReturn(f);
 		fr = new FederatedResource("a@p1",dummy);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+		
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.UNAUTHORIZED));
 		assertEquals(new ResponseEntity<>(HttpStatus.UNAUTHORIZED), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
@@ -252,10 +252,36 @@ public class RestInterfaceTest {
 		when(fedRepo.findOne("fed1")).thenReturn(f);
 		fr = new FederatedResource("a@p1",dummy);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-		//when(AuthorizationServiceHelper.checkSecurityRequestAndCreateServiceResponse(any(SecurityManager.class), any(HttpHeaders.class), any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 		assertEquals(HttpStatus.OK,restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)).getStatusCode());
+	}
+	
+	@Test
+	public void resourcesDeletedUnauthorized() throws JsonProcessingException{
+		FederationMember fm = new FederationMember();
+		fm.setPlatformId("a");
+		f.setMembers(Arrays.asList(fm));
+		when(fedResRepo.findOne(any(String.class))).thenReturn(fr);
+		when(fedRepo.findOne(any(String.class))).thenReturn(f);
+		
+		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.UNAUTHORIZED));
+		assertEquals(new ResponseEntity<>(HttpStatus.UNAUTHORIZED), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
+	}
+	
+	@Test
+	public void resourcesDeletedAuthorizedOk() throws JsonProcessingException{
+		FederationMember fm = new FederationMember();
+		fm.setPlatformId("a");
+		f.setMembers(Arrays.asList(fm));
+		when(fedResRepo.findOne(any(String.class))).thenReturn(fr);
+		when(fedRepo.findOne(any(String.class))).thenReturn(f);
+		
+		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		when(securityManager.checkRequest(any(HttpHeaders.class),any(String.class),any(String.class))).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+		assertEquals(HttpStatus.OK, restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)).getStatusCode());
 	}
 
 }
