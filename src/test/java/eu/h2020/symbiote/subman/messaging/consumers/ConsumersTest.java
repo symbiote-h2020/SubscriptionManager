@@ -1,6 +1,7 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -31,6 +33,8 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
+import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
@@ -61,6 +65,9 @@ public class ConsumersTest {
     
     @Value("${rabbit.routingKey.subscriptionManager.removeFederatedResources}")
     String resRemovedRk;
+    
+    @Mock
+    eu.h2020.symbiote.subman.controller.SecurityManager securityManager;
 
     @Autowired
     FederationRepository federationRepository;
@@ -74,6 +81,7 @@ public class ConsumersTest {
     static Resource resDummy;
 	static CloudResource dummy;
 	static FederatedResource fr;
+	Federation f;
 	
     @Before
     public void setup() {
@@ -85,12 +93,19 @@ public class ConsumersTest {
 		dummy.setResource(resDummy);
 		FederationInfoBean fib = new FederationInfoBean();
 		Map<String, ResourceSharingInformation> map = new HashMap<>();
-		map.put("todel", null);
+		ResourceSharingInformation rsi = new ResourceSharingInformation();
+		rsi.setBartering(true);
+		map.put("todel", rsi);
 		fib.setSharingInformation(map);
 		dummy.setFederationInfo(fib);
 		
 		fr = new FederatedResource("a@a",dummy);
 		fr.setRestUrl("aa");
+		
+		FederationMember fm = new FederationMember();
+		fm.setPlatformId("todel");
+		f = new Federation();
+		f.setMembers(Arrays.asList(fm));
     }
 
     @Test
@@ -162,11 +177,48 @@ public class ConsumersTest {
     }
     
     @Test
+    public void addedOrUpdatedFederatedResourceInterestedFederationTest() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	f.setId("todel");
+    	federationRepository.insert(f);
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
+    }
+    
+    @Test
     public void deletedFederatedResourceLocalMongoDeletitionTest() throws InterruptedException{
     	Set<String> federationDummies = new HashSet<>();
     	federationDummies.add("todel");
     	fr.setFederations(federationDummies);
     	fedResRepo.save(fr);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	Map<String, Set<String>> toDelete = new HashMap<>();
+    	toDelete.put("a@a", federationDummies);
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
+    
+    @Test
+    public void deletedFederatedResourceInterestedFederationTest() throws InterruptedException{
+    	Set<String> federationDummies = new HashSet<>();
+    	federationDummies.add("todel");
+    	fr.setFederations(federationDummies);
+    	fedResRepo.save(fr);
+    	f.setId("todel");
+    	federationRepository.insert(f);
     	List<FederatedResource> current = fedResRepo.findAll();
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
@@ -201,5 +253,14 @@ public class ConsumersTest {
         FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
         
         assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
+    }
+    
+    @Test
+    public void serializationFailureTest() {
+    	
+        Consumers con = new Consumers();
+        FederatedResource cloneFr = con.deserializeFederatedResource("dummy");
+        
+        assertNull(cloneFr);
     }
 }
