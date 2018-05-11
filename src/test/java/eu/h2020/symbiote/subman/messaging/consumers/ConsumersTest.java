@@ -1,7 +1,6 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,7 +13,6 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -34,7 +32,6 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
-import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
@@ -65,9 +62,6 @@ public class ConsumersTest {
     
     @Value("${rabbit.routingKey.subscriptionManager.removeFederatedResources}")
     String resRemovedRk;
-    
-    @Mock
-    eu.h2020.symbiote.subman.controller.SecurityManager securityManager;
 
     @Autowired
     FederationRepository federationRepository;
