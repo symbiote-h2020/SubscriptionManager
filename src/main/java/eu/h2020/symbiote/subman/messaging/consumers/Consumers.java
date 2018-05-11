@@ -215,7 +215,7 @@ public class Consumers {
                                 securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
                                 urls.get(entry.getKey()));
                     } catch (Exception e) {
-                        logger.warn("Execution thrown during sending addedOrUpdatedFederatedResource", e);
+                        logger.warn("Exception thrown during sending addedOrUpdatedFederatedResource", e);
                     }
 
                     logger.debug("ServiceResponse = " + serviceResponse);
@@ -232,7 +232,7 @@ public class Consumers {
                             logger.info("Failed to send addedOrUpdatedFederatedResource message to platform " + entry.getKey()
                                     + " due to the response verification error!");
                     } catch (Exception e) {
-                    logger.warn("Execution thrown during verifying service response", e);
+                    logger.warn("Exception thrown during verifying service response", e);
                     }
                 }
             } else
@@ -329,7 +329,7 @@ public class Consumers {
                          serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest,
                                 new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
                     } catch (Exception e) {
-                        logger.warn("Execution thrown during sending unsharedFederatedResource", e);
+                        logger.warn("Exception thrown during sending unsharedFederatedResource", e);
                     }
 
                     logger.debug("ServiceResponse = " + serviceResponse);
@@ -346,7 +346,7 @@ public class Consumers {
                             logger.warn("Failed to send unsharedFederatedResource message to platform " + entry.getKey()
                                     + " due to the response verification error!");
                     } catch (Exception e) {
-                        logger.warn("Execution thrown during verifying service response", e);
+                        logger.warn("Exception thrown during verifying service response", e);
                     }
                 }
             } else
