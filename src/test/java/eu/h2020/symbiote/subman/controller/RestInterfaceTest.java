@@ -1,4 +1,4 @@
-package eu.h2020.symbiote.subman;
+package eu.h2020.symbiote.subman.controller;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
