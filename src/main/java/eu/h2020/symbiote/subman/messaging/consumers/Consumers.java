@@ -165,6 +165,10 @@ public class Consumers {
                     	//to avoid platform sending HTTP request to itself
                     	if(fm.getPlatformId().equals(this.platformId)) continue;
                     	
+                    	/**
+                    	 * CHECK IF CURRENT FEDERATION MEMEBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
+                    	 */
+                    	
                         // if platform is not yet in a list for receiving
                         // notification, add it
                         if (!platformMessages.containsKey(fm.getPlatformId())) {
@@ -279,7 +283,7 @@ public class Consumers {
                     toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(fedId);
                 }
 
-                // if federatedResource is unshared from all federations remove it? TODO check if necessary
+                // if federatedResource is unshared from all federations remove it
                 if (toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())
                     fedResRepo.delete(entry.getKey());
 
@@ -297,6 +301,10 @@ public class Consumers {
                     	
                     	//to avoid platform sending HTTP request to itself
                     	if(fedMember.getPlatformId().equals(this.platformId)) continue;
+                    	
+                    	/**
+                    	 * CHECK IF CURRENT FEDERATION MEMBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
+                    	 */
                     	
                         if (!platformMessages.containsKey(fedMember.getPlatformId())) {
                             platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
