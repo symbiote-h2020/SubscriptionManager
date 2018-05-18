@@ -24,7 +24,6 @@ public class SubscriptionManager {
 		SpringApplication.run(SubscriptionManager.class, args);
     }
 	
-
 	@Bean
 	CommandLineRunner initData(SubscriptionRepository subscriptionRepo){
 	   return args -> {
