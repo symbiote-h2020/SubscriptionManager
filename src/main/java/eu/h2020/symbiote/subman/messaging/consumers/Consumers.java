@@ -128,6 +128,8 @@ public class Consumers {
             String federationId = new String(body);
             fedRepo.delete(federationId);
             logger.info("Federation with id: " + federationId + " removed from repository.");
+            
+            processFederationDeleted(federationId);
         } catch (Exception e) {
             logger.warn("Exception thrown during federation deletion", e);
         }
@@ -468,6 +470,24 @@ public class Consumers {
 				}
 			}
 		}	
+	}
+	
+	//TODO test
+	/**
+	 * Updating numberOfCommonFederations map according to federationMemebers of deleted federation,
+	 * and if there are no more common federations of this platform and deleted member,
+	 * its subscription is removed from subsriptionRepo
+	 * @param federationId
+	 */
+	protected void processFederationDeleted(String federationId){
+		List<String> deletedMembers = fedRepo.findOne(federationId).getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+		for(String deletedMemberId : deletedMembers){
+			if(numberOfCommonFederations.get(deletedMemberId)>1) numberOfCommonFederations.put(deletedMemberId, numberOfCommonFederations.get(deletedMemberId) - 1);
+			else {
+				numberOfCommonFederations.remove(deletedMemberId);
+				subscriptionRepo.delete(deletedMemberId);
+			}
+		}
 	}
 	
 }
