@@ -45,6 +45,7 @@ import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
+import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;
 import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 
@@ -80,6 +81,9 @@ public class ConsumersTest {
     
     @Autowired
     FederatedResourceRepository fedResRepo;
+    
+    @Autowired
+    SubscriptionRepository subRepo;
 
     @Autowired
     RabbitManager rabbitManager;
@@ -90,6 +94,7 @@ public class ConsumersTest {
     static Resource resDummy;
 	static CloudResource dummy;
 	static FederatedResource fr;
+	FederationMember fm;
 	Federation f;
 	
     @Before
@@ -111,7 +116,7 @@ public class ConsumersTest {
 		fr = new FederatedResource("a@a",dummy);
 		fr.setRestUrl("aa");
 		
-		FederationMember fm = new FederationMember();
+		fm = new FederationMember();
 		fm.setPlatformId("todel");
 		f = new Federation();
 		f.setMembers(Arrays.asList(fm));
@@ -123,11 +128,20 @@ public class ConsumersTest {
 
         federation.setId("exampleId");
         federation.setName("FederationName");
+        federation.setMembers(Arrays.asList(fm));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
         TimeUnit.MILLISECONDS.sleep(400);
-        List<Federation> federations = federationRepository.findAll();
-        assertEquals(1, federations.size());
+        assertEquals(1, federationRepository.findAll().size());
+        
+        assertEquals(fm.getPlatformId(), subRepo.findOne(fm.getPlatformId()).getPlatformId());
+        
+        federation.setId("exampleId1");
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        assertEquals(2, federationRepository.findAll().size());
+        assertEquals(2, subRepo.findAll().size());
     }
     
     @Test
