@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import eu.h2020.symbiote.security.commons.SecurityConstants;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.amqp.core.Message;
@@ -30,13 +29,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
+import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
+import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;
 
 /**
  * @author Petar Krivic (UniZG-FER) 28/02/2018
@@ -54,6 +56,9 @@ public class Consumers {
 
 	@Autowired
 	private FederatedResourceRepository fedResRepo;
+	
+	@Autowired
+	private SubscriptionRepository subscriptionRepo;
 
 	@Autowired
 	private SecurityManager securityManager;
@@ -61,10 +66,13 @@ public class Consumers {
 	private MessageConverter messageConverter;
 
 	private ObjectMapper mapper = new ObjectMapper();
+	
+	private Map<String, Integer> numberOfCommonFederations;
 
 	@Autowired
 	public Consumers() {
 		messageConverter = new Jackson2JsonMessageConverter();
+		numberOfCommonFederations = new HashMap<>();
 	}
 
 	/**
@@ -80,6 +88,8 @@ public class Consumers {
             Federation federation = (Federation) messageConverter.fromMessage(msg);
             fedRepo.save(federation);
             logger.info("Federation with id: " + federation.getId() + " added to repository.");
+            
+            processFederationCreated(federation);
         } catch (Exception e) {
 	        logger.warn("Exception thrown during federation creation", e);
         }
@@ -98,6 +108,8 @@ public class Consumers {
             Federation federation = (Federation) messageConverter.fromMessage(msg);
             fedRepo.save(federation);
             logger.info("Federation with id: " + federation.getId() + " updated.");
+            
+            processFederationUpdated(federation);
         } catch (Exception e) {
             logger.warn("Exception thrown during federation update", e);
         }
@@ -389,4 +401,73 @@ public class Consumers {
 		}
 		return federatedResource;
 	}
+	
+	/**
+	 * Method checks if each federationMember is already in some federation with this platform.
+	 * if yes, it is assumed that subscription object for that platform already exists, and 
+	 * that the other platform is already informed about this platform subscription.
+	 * If not, initial subscription is created for federationMember and stored to DB 
+	 * (although it is expected to receive HTTP POST from that platform and overwrite it).
+	 * numberOfCommonFederations is used to track the number of common federations that this platform
+	 * has with other platforms
+	 * @param federation
+	 */
+	protected void processFederationCreated(Federation federation){
+		
+		//map keeps number of common federations of this platform with others
+		for(FederationMember fedMember : federation.getMembers()){
+			if(numberOfCommonFederations.containsKey(fedMember.getPlatformId()))
+				numberOfCommonFederations.put(fedMember.getPlatformId(), numberOfCommonFederations.get(fedMember.getPlatformId()) + 1);
+			else {
+				numberOfCommonFederations.put(fedMember.getPlatformId(), 1);
+				Subscription subscription = new Subscription();
+				subscription.setPlatformId(fedMember.getPlatformId());
+				subscriptionRepo.save(subscription);
+				//TODO SEND HTT-POST OF OWN SUBSCRIPTION
+			}		
+		}
+	}
+	
+	//TODO test
+	/**
+	 * Method updates numberOfCommonFederations according to federation updates.
+	 * If federation members are added to federation, own subscription is sent to new members
+	 * and their initial subscription is created in subscriptionRepo.
+	 * If federation members are removed from federation, map is updated, and
+	 * if there are no more common federations of this platform and deleted member,
+	 * its subscription is removed from subsriptionRepo
+	 * @param federation
+	 */
+	protected void processFederationUpdated(Federation federation){
+			
+		List<String> oldMembers = fedRepo.findOne(federation.getId()).getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+		List<String> newMembers = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+		//if federationsMembers are changed, update commonFederations map
+		for (String newFedMembersId : newMembers){
+			//if new federation member is added in this updated federation...
+			if(!oldMembers.contains(newFedMembersId)){
+				if(numberOfCommonFederations.containsKey(newFedMembersId))
+					numberOfCommonFederations.put(newFedMembersId, numberOfCommonFederations.get(newFedMembersId) + 1);
+				else {
+					numberOfCommonFederations.put(newFedMembersId, 1);
+					Subscription subscription = new Subscription();
+					subscription.setPlatformId(newFedMembersId);
+					subscriptionRepo.save(subscription);
+					//TODO SEND HTT-POST OF OWN SUBSCRIPTION
+				}
+			}
+		}
+		
+		for(String oldFedMembersId : oldMembers){
+			if(!newMembers.contains(oldFedMembersId)){
+				//if federation members is removed in updated federation
+				if(numberOfCommonFederations.get(oldFedMembersId)>1) numberOfCommonFederations.put(oldFedMembersId, numberOfCommonFederations.get(oldFedMembersId) - 1);
+				else {
+					numberOfCommonFederations.remove(oldFedMembersId);
+					subscriptionRepo.delete(oldFedMembersId);
+				}
+			}
+		}	
+	}
+	
 }
