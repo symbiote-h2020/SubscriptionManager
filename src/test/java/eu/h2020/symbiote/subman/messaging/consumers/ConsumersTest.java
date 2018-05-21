@@ -106,6 +106,7 @@ public class ConsumersTest {
     public void setup() {
         federationRepository.deleteAll();
         fedResRepo.deleteAll();
+        subRepo.deleteAll();
         resDummy = new Resource();
 		resDummy.setInterworkingServiceURL("dummyUrl");
 		dummy = new CloudResource();
@@ -175,36 +176,47 @@ public class ConsumersTest {
 
         federation.setId("exampleId");
         federation.setName("FederationName");
+        federation.setMembers(Arrays.asList(fm));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
         TimeUnit.MILLISECONDS.sleep(400);
+        //check that there is no subscription created for fm
+        assertNull(subRepo.findOne(fm.getPlatformId()));
         
-        //changing of created federation
-        federation.setId("exampleId");
-        federation.setName("FederationName1");
+        
+        //adding this platform to existing federation
+        federation.setMembers(Arrays.asList(fm,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        //check that now subscription is created for fm
+        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fm2");
+        federation.setMembers(Arrays.asList(fm,fm1,fm2));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        //check that now subscription is created for fm2
+        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        assertNotNull(subRepo.findOne(fm2.getPlatformId()));
+        
+        federation.setMembers(Arrays.asList(fm,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        //check that now subscription is deleted for fm2
+        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        assertNull(subRepo.findOne(fm2.getPlatformId()));
+        
+        //removing this platform from existing federation
         federation.setMembers(Arrays.asList(fm));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
-        assertEquals(1, federationRepository.findAll().size());
-        assertEquals("FederationName1", federationRepository.findAll().get(0).getName());
-        
-        
-        FederationMember fm1 = new FederationMember();
-		fm1.setPlatformId("todel1");
-		federation.setMembers(Arrays.asList(fm,fm1));
-		assertEquals(1, federationRepository.findAll().get(0).getMembers().size());
-		rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-        
-        TimeUnit.MILLISECONDS.sleep(400);
-        assertEquals(1, federationRepository.findAll().size());
-        assertEquals(2, federationRepository.findAll().get(0).getMembers().size());
-        
-        federation.setMembers(Arrays.asList(fm1));
-        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-        TimeUnit.MILLISECONDS.sleep(400);
-        
-        assertEquals(1, federationRepository.findAll().get(0).getMembers().size());
+        //check that subscription of fm is removed
+        assertNull(subRepo.findOne(fm.getPlatformId()));
     }
 
     @Test
