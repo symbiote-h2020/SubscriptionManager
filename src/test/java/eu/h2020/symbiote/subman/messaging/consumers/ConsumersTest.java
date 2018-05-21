@@ -37,6 +37,7 @@ import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
 import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
+import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
@@ -75,6 +76,9 @@ public class ConsumersTest {
     
     @Value("${rabbit.routingKey.subscriptionManager.removeFederatedResources}")
     String resRemovedRk;
+    
+    @Value("${platform.id}")
+    String thisPlatformId;
 
     @Autowired
     FederationRepository federationRepository;
@@ -95,6 +99,7 @@ public class ConsumersTest {
 	static CloudResource dummy;
 	static FederatedResource fr;
 	FederationMember fm;
+	FederationMember fm1;
 	Federation f;
 	
     @Before
@@ -118,6 +123,8 @@ public class ConsumersTest {
 		
 		fm = new FederationMember();
 		fm.setPlatformId("todel");
+		fm1 = new FederationMember();
+		fm1.setPlatformId(thisPlatformId);
 		f = new Federation();
 		f.setMembers(Arrays.asList(fm));
     }
@@ -128,20 +135,38 @@ public class ConsumersTest {
 
         federation.setId("exampleId");
         federation.setName("FederationName");
-        federation.setMembers(Arrays.asList(fm));
+        federation.setMembers(Arrays.asList(fm,fm1));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
         TimeUnit.MILLISECONDS.sleep(400);
-        assertEquals(1, federationRepository.findAll().size());
+        //check that federation is saved in mongoDB
+        assertNotNull(federationRepository.findOne("exampleId"));
+        //check that subscription is created for federation member
+        assertNotNull(subRepo.findOne(fm.getPlatformId()));
         
-        assertEquals(fm.getPlatformId(), subRepo.findOne(fm.getPlatformId()).getPlatformId());
+        //manipulate subscription of added federationMember
+        Subscription s = new Subscription();
+        s.setPlatformId("todel");
+        s.setLocations(Arrays.asList("Split"));
+        subRepo.save(s);
         
         federation.setId("exampleId1");
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
-        assertEquals(2, federationRepository.findAll().size());
-        assertEquals(2, subRepo.findAll().size());
+        //check that the subscription of federationMember is not overwritten since it already exists
+        assertEquals("Split", subRepo.findOne(fm.getPlatformId()).getLocations().get(0));
+        
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fmaaa");
+        federation.setMembers(Arrays.asList(fm2));
+        federation.setId("exampleId2");
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        //check that subscription is not created for fm2 since it is not federated with this platform
+        assertNull(subRepo.findOne(fm2.getPlatformId()));
+        
     }
     
     @Test
@@ -157,12 +182,29 @@ public class ConsumersTest {
         //changing of created federation
         federation.setId("exampleId");
         federation.setName("FederationName1");
+        federation.setMembers(Arrays.asList(fm));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
-        List<Federation> federations = federationRepository.findAll();
-        assertEquals(1, federations.size());
-        assertEquals("FederationName1", federations.get(0).getName());
+        assertEquals(1, federationRepository.findAll().size());
+        assertEquals("FederationName1", federationRepository.findAll().get(0).getName());
+        
+        
+        FederationMember fm1 = new FederationMember();
+		fm1.setPlatformId("todel1");
+		federation.setMembers(Arrays.asList(fm,fm1));
+		assertEquals(1, federationRepository.findAll().get(0).getMembers().size());
+		rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        assertEquals(1, federationRepository.findAll().size());
+        assertEquals(2, federationRepository.findAll().get(0).getMembers().size());
+        
+        federation.setMembers(Arrays.asList(fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        TimeUnit.MILLISECONDS.sleep(400);
+        
+        assertEquals(1, federationRepository.findAll().get(0).getMembers().size());
     }
 
     @Test
@@ -172,18 +214,21 @@ public class ConsumersTest {
 
         federation.setId(federationId);
         federation.setName("FederationName");
-        federationRepository.save(federation);
+        FederationMember fm1 = new FederationMember();
+        fm1.setPlatformId("testPlatform");
+        federation.setMembers(Arrays.asList(fm,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
-        while (federationRepository.findAll().size() == 0)
-            TimeUnit.MILLISECONDS.sleep(100);
-
+        TimeUnit.MILLISECONDS.sleep(500);
+        
+        assertNotNull(subRepo.findOne(fm.getPlatformId()));
         RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
         Message message = new Message(federationId.getBytes(), new MessageProperties());
         rabbitTemplate.send(federationExchange, federationDeletedKey, message);
 
         TimeUnit.MILLISECONDS.sleep(400);
-        List<Federation> federations = federationRepository.findAll();
-        assertEquals(0, federations.size());
+        assertEquals(0, federationRepository.findAll().size());
+        assertNull(subRepo.findOne(fm.getPlatformId()));
     }
     
     @Test
