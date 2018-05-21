@@ -1,9 +1,9 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.any;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,17 +16,12 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -41,15 +36,16 @@ import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
-import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
+import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;
-import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
-import eu.h2020.symbiote.subman.controller.SecurityManager;
 
+/**
+ * @author Petar Krivic (UniZG-FER)
+ */
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @TestPropertySource(locations = "classpath:test.properties")
@@ -221,26 +217,33 @@ public class ConsumersTest {
 
     @Test
     public void federationDeletedTest() throws InterruptedException {
-        String federationId = "exampleId";
-        Federation federation = new Federation();
 
-        federation.setId(federationId);
+    	Federation federation = new Federation();
+
+        federation.setId("exampleId");
         federation.setName("FederationName");
-        FederationMember fm1 = new FederationMember();
-        fm1.setPlatformId("testPlatform");
-        federation.setMembers(Arrays.asList(fm,fm1));
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fm2");
+        federation.setMembers(Arrays.asList(fm,fm1,fm2));
+
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
-        TimeUnit.MILLISECONDS.sleep(500);
+        TimeUnit.MILLISECONDS.sleep(400);
         
         assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        assertNotNull(subRepo.findOne(fm2.getPlatformId()));
+        assertNotNull(federationRepository.findOne("exampleId"));
+        
         RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
-        Message message = new Message(federationId.getBytes(), new MessageProperties());
+        Message message = new Message("exampleId".getBytes(), new MessageProperties());
         rabbitTemplate.send(federationExchange, federationDeletedKey, message);
 
         TimeUnit.MILLISECONDS.sleep(400);
-        assertEquals(0, federationRepository.findAll().size());
+        //check that federation is removed from mongoDB
+        assertNull(federationRepository.findOne("exampleId"));
+        //check that subscriptions of fm and fm2 are removed from mongoDB
         assertNull(subRepo.findOne(fm.getPlatformId()));
+        assertNull(subRepo.findOne(fm2.getPlatformId()));
     }
     
     @Test
