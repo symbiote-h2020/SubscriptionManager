@@ -106,10 +106,12 @@ public class Consumers {
 
 	    try {
             Federation federation = (Federation) messageConverter.fromMessage(msg);
+            //fetch current federationMembers before updating it in mongoDB
+            List<String> oldMembers = fedRepo.findOne(federation.getId()).getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
             fedRepo.save(federation);
             logger.info("Federation with id: " + federation.getId() + " updated.");
             
-            processFederationUpdated(federation);
+            processFederationUpdated(federation, oldMembers);
         } catch (Exception e) {
             logger.warn("Exception thrown during federation update", e);
         }
@@ -443,9 +445,8 @@ public class Consumers {
 	 * its subscription is removed from subsriptionRepo
 	 * @param federation
 	 */
-	protected void processFederationUpdated(Federation federation){
+	protected void processFederationUpdated(Federation federation, List<String> oldMembers){
 			
-		List<String> oldMembers = fedRepo.findOne(federation.getId()).getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
 		List<String> newMembers = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
 		
 		//if this platform is added to existing federation process it as new federation is created
