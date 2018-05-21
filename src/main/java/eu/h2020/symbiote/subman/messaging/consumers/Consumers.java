@@ -67,7 +67,7 @@ public class Consumers {
 
 	private ObjectMapper mapper = new ObjectMapper();
 	
-	private Map<String, Integer> numberOfCommonFederations;
+	private static Map<String, Integer> numberOfCommonFederations;
 
 	@Autowired
 	public Consumers() {
@@ -415,18 +415,21 @@ public class Consumers {
 	 * @param federation
 	 */
 	protected void processFederationCreated(Federation federation){
-		
-		//map keeps number of common federations of this platform with others
+		//check if received federation contains this platform
+		boolean federationContainsThisPlatform = false;
 		for(FederationMember fedMember : federation.getMembers()){
-			if(numberOfCommonFederations.containsKey(fedMember.getPlatformId()))
-				numberOfCommonFederations.put(fedMember.getPlatformId(), numberOfCommonFederations.get(fedMember.getPlatformId()) + 1);
-			else {
-				numberOfCommonFederations.put(fedMember.getPlatformId(), 1);
-				Subscription subscription = new Subscription();
-				subscription.setPlatformId(fedMember.getPlatformId());
-				subscriptionRepo.save(subscription);
-				//TODO SEND HTT-POST OF OWN SUBSCRIPTION
-			}		
+			if(fedMember.getPlatformId().equals(platformId)) {
+				federationContainsThisPlatform = true;
+				break;
+			}
+		}
+
+		if(federationContainsThisPlatform){
+			for(FederationMember fedMember : federation.getMembers()){
+				if(fedMember.getPlatformId().equals(platformId))continue; //skip procedure for this platform
+				//map keeps number of common federations of this platform with others
+				processFedMemberAdding(fedMember.getPlatformId());		
+			}
 		}
 	}
 	
@@ -444,32 +447,63 @@ public class Consumers {
 			
 		List<String> oldMembers = fedRepo.findOne(federation.getId()).getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
 		List<String> newMembers = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-		//if federationsMembers are changed, update commonFederations map
-		for (String newFedMembersId : newMembers){
-			//if new federation member is added in this updated federation...
-			if(!oldMembers.contains(newFedMembersId)){
-				if(numberOfCommonFederations.containsKey(newFedMembersId))
-					numberOfCommonFederations.put(newFedMembersId, numberOfCommonFederations.get(newFedMembersId) + 1);
-				else {
-					numberOfCommonFederations.put(newFedMembersId, 1);
-					Subscription subscription = new Subscription();
-					subscription.setPlatformId(newFedMembersId);
-					subscriptionRepo.save(subscription);
-					//TODO SEND HTT-POST OF OWN SUBSCRIPTION
-				}
+		
+		//if this platform is added to existing federation process it as new federation is created
+		if(!oldMembers.contains(platformId) && newMembers.contains(platformId))processFederationCreated(federation);
+		
+		//if this platform is removed from federation...
+		else if(oldMembers.contains(platformId) && !newMembers.contains(platformId)){
+			for(String oldFedMembersId : oldMembers){
+				if(oldFedMembersId.equals(platformId))continue;
+				else processFedMemberRemoval(oldFedMembersId);
 			}
 		}
 		
-		for(String oldFedMembersId : oldMembers){
-			if(!newMembers.contains(oldFedMembersId)){
-				//if federation members is removed in updated federation
-				if(numberOfCommonFederations.get(oldFedMembersId)>1) numberOfCommonFederations.put(oldFedMembersId, numberOfCommonFederations.get(oldFedMembersId) - 1);
-				else {
-					numberOfCommonFederations.remove(oldFedMembersId);
-					subscriptionRepo.delete(oldFedMembersId);
+		//if this platform was, and still is in updated federation...
+		else{
+			for(String newFedMembersId : newMembers){
+				if(newFedMembersId.equals(platformId))continue;
+				//if new federation member is added in this updated federation...
+				else if(!oldMembers.contains(newFedMembersId)){
+					processFedMemberAdding(newFedMembersId);					
 				}
-			}
-		}	
+			}			
+			for(String oldFedMembersId : oldMembers){
+				if(oldFedMembersId.equals(platformId))continue;
+				//if federation member is removed in updated federation
+				else if(!newMembers.contains(oldFedMembersId)){
+					processFedMemberRemoval(oldFedMembersId);
+				}
+			}	
+		}
+	}
+	
+	/**
+	 * Method processes removal of federationMember(Id) from a single common federation that it had with this platform.
+	 * @param oldFedMembersId
+	 */
+	protected void processFedMemberRemoval(String oldFedMembersId){
+		if(numberOfCommonFederations.get(oldFedMembersId)>1) numberOfCommonFederations.put(oldFedMembersId, numberOfCommonFederations.get(oldFedMembersId) - 1);
+		else {
+			numberOfCommonFederations.remove(oldFedMembersId);
+			subscriptionRepo.delete(oldFedMembersId);
+		}
+	}
+	
+	/**
+	 * Method processes adding of FederationMember(Id) to a common federation with this platform.
+	 * @param newFedMembersId
+	 */
+	protected void processFedMemberAdding(String newFedMembersId){
+		if(numberOfCommonFederations.containsKey(newFedMembersId))
+			numberOfCommonFederations.put(newFedMembersId, numberOfCommonFederations.get(newFedMembersId) + 1);
+		else {
+			numberOfCommonFederations.put(newFedMembersId, 1);
+			Subscription subscription = new Subscription();
+			subscription.setPlatformId(newFedMembersId);
+			subscriptionRepo.save(subscription);
+			//TODO SEND HTTP-POST OF OWN SUBSCRIPTION
+		}
 	}
 	
 	//TODO test
