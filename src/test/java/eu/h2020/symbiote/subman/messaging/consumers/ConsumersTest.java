@@ -120,6 +120,7 @@ public class ConsumersTest {
 		
 		fm = new FederationMember();
 		fm.setPlatformId("todel");
+		fm.setInterworkingServiceURL("http://todel-interworking.com");
 		fm1 = new FederationMember();
 		fm1.setPlatformId(thisPlatformId);
 		f = new Federation();
@@ -190,6 +191,7 @@ public class ConsumersTest {
         
         FederationMember fm2 = new FederationMember();
         fm2.setPlatformId("fm2");
+        fm2.setInterworkingServiceURL("fm2-interworking");
         federation.setMembers(Arrays.asList(fm,fm1,fm2));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
