@@ -67,12 +67,16 @@ public class Consumers {
 
 	private ObjectMapper mapper = new ObjectMapper();
 	
+	//<platformId,numberOfCommonFederations>
 	private static Map<String, Integer> numberOfCommonFederations;
+	
+	private static Map<String, String> addressBook;
 
 	@Autowired
 	public Consumers() {
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
+		addressBook = new HashMap();
 	}
 
 	/**
@@ -428,7 +432,8 @@ public class Consumers {
 			for(FederationMember fedMember : federation.getMembers()){
 				if(fedMember.getPlatformId().equals(platformId))continue; //skip procedure for this platform
 				//map keeps number of common federations of this platform with others
-				processFedMemberAdding(fedMember.getPlatformId());		
+				processFedMemberAdding(fedMember.getPlatformId());
+				addressBook.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
 			}
 		}
 	}
@@ -463,7 +468,8 @@ public class Consumers {
 				if(newFedMembersId.equals(platformId))continue;
 				//if new federation member is added in this updated federation...
 				else if(!oldMembers.contains(newFedMembersId)){
-					processFedMemberAdding(newFedMembersId);					
+					processFedMemberAdding(newFedMembersId);
+					addressBook.put(newFedMembersId, federation.getMembers().stream().filter(x -> newFedMembersId.equals(x.getPlatformId())).findAny().get().getInterworkingServiceURL());
 				}
 			}			
 			for(String oldFedMembersId : oldMembers){
@@ -474,6 +480,7 @@ public class Consumers {
 				}
 			}	
 		}
+		logger.info(addressBook);
 	}
 	
 	/**
@@ -504,6 +511,7 @@ public class Consumers {
 		else {
 			numberOfCommonFederations.remove(oldFedMembersId);
 			subscriptionRepo.delete(oldFedMembersId);
+			addressBook.remove(oldFedMembersId);
 		}
 	}
 	
