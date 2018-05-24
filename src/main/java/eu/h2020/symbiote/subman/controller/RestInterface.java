@@ -171,7 +171,7 @@ public class RestInterface {
 			
 			for(String federationId : fedRes.getCloudResource().getFederationInfo().getSharingInformation().keySet()){
 				Federation current = fedRepo.findOne(federationId);
-				if(current == null) continue; // if federation does not exist...
+				if(current == null) return false;
 				requestOk = false;
 				for (FederationMember fedMem : current.getMembers()){
 					if(fedMem.getPlatformId().equals(senderPlatformId)) {
