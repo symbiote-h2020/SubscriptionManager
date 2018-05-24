@@ -74,12 +74,17 @@ public class RestInterface {
 			@RequestBody String receivedJson) {
 
 		logger.info("resourcesAddedOrUpdated HTTP-POST request received.");
-		ResourcesAddedOrUpdatedMessage receivedMessage = mapAddedOrUpdatedMessage(receivedJson);
-		if(receivedMessage == null) return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		ResourcesAddedOrUpdatedMessage receivedMessage;
+		try {
+			receivedMessage = om.readValue(receivedJson, ResourcesAddedOrUpdatedMessage.class);
+		} catch (Exception e) {
+			logger.info("Exception trying to map received json to ResourcesAddedOrUpdatedMessage object!");
+			return new ResponseEntity<>("Received message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST);
+		}
 		
 		//assuming all received federatedResources are from the same request-sender platform
 		String senderPlatformId = receivedMessage.getNewFederatedResources().get(0).getPlatformId();
-		//for every FedRes check if sender platformId is in federation with federationId
+		//for every FedRes check if sender platformId is in federation specified with federationId
 		if(!checkPlatformIdInFederationsCondition1(senderPlatformId, receivedMessage))return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 
 		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
@@ -108,9 +113,14 @@ public class RestInterface {
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
 		logger.info("resourcesDeleted HTTP-POST request received.");
-		ResourcesDeletedMessage receivedMessage = mapDeletedMessage(receivedJson);
-
-		if(receivedMessage == null) return new ResponseEntity<>("Received message is null", HttpStatus.BAD_REQUEST);
+		ResourcesDeletedMessage receivedMessage;
+		
+		try {
+			receivedMessage = om.readValue(receivedJson, ResourcesDeletedMessage.class);
+		} catch (IOException e) {
+			logger.info("Exception trying to map received json to ResourcesDeletedMessage object!");
+			return new ResponseEntity<>("Received message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST);
+		}
 
         //check that platform that shared received fedRes is in federations where the resource is being unshared(received in request)
 		if(!checkPlatformIdInFederationsCondition2(receivedMessage))
@@ -127,8 +137,6 @@ public class RestInterface {
 			return securityResponse;
 		}
 
-        logger.info("5");
-
         //forward message to PR via RMQ (check if single or list)
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, receivedMessage);
 
@@ -139,40 +147,23 @@ public class RestInterface {
 	
 	@RequestMapping(value = "/subscriptionManager/subscribe", method = RequestMethod.POST)
 	public ResponseEntity<?> subscriptionDefinition(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
-		//TODO implement subscription model and receiving definition request
+		//TODO IMPLEMENT
 		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
 	}
 	
-	@RequestMapping(value = "/subscriptionManager/unsubscribe", method = RequestMethod.POST)
+	@RequestMapping(value = "/subscriptionManager/subscription", method = RequestMethod.POST)
 	public ResponseEntity<?> subscriptionRemoval(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
-		//TODO implement subscription model and receiving definition request
+		//TODO IMPLEMENT
 		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
 	}
 	
-	public static ResourcesAddedOrUpdatedMessage mapAddedOrUpdatedMessage(String json){
-		
-		ResourcesAddedOrUpdatedMessage received;
-		try {
-			received = om.readValue(json, ResourcesAddedOrUpdatedMessage.class);
-		} catch (IOException e) {
-			logger.info("Exception trying to map received ResourcesAddedOrUpdatedMessage json to object!");
-			return null;
-		}
-		return received;
-	}
-	
-	public static ResourcesDeletedMessage mapDeletedMessage(String json){
-		
-		ResourcesDeletedMessage received;
-		try {
-			received = om.readValue(json, ResourcesDeletedMessage.class);
-		} catch (IOException e) {
-			logger.info("Exception trying to map received ResourcesDeletedMessage json to object!");
-			return null;
-		}
-		return received;
-	}
-	
+	/**
+	 * Method checks if senderPlatformId is in all federations where resource is being shared.
+	 * 
+	 * @param senderPlatformId
+	 * @param receivedMessage
+	 * @return
+	 */
 	public boolean checkPlatformIdInFederationsCondition1(String senderPlatformId, ResourcesAddedOrUpdatedMessage receivedMessage){
 		
 		boolean requestOk = false;
@@ -180,7 +171,7 @@ public class RestInterface {
 			
 			for(String federationId : fedRes.getCloudResource().getFederationInfo().getSharingInformation().keySet()){
 				Federation current = fedRepo.findOne(federationId);
-				if(current == null)return false;
+				if(current == null) continue; // if federation does not exist...
 				requestOk = false;
 				for (FederationMember fedMem : current.getMembers()){
 					if(fedMem.getPlatformId().equals(senderPlatformId)) {
@@ -199,7 +190,7 @@ public class RestInterface {
 	    boolean requestOk = false;
 		//for every received federatedResourceId
 		for (String fedResId : rdm.getDeletedFederatedResourcesMap().keySet()) {
-		    logger.debug(fedResId);
+
 			FederatedResource fedRes = fedResRepo.findOne(fedResId);
 			if(fedRes == null) return false;
 
