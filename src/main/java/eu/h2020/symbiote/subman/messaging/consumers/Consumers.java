@@ -76,7 +76,7 @@ public class Consumers {
 	public Consumers() {
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
-		addressBook = new HashMap();
+		addressBook = new HashMap<>();
 	}
 
 	/**
@@ -480,7 +480,6 @@ public class Consumers {
 				}
 			}	
 		}
-		logger.info(addressBook);
 	}
 	
 	/**
