@@ -1,7 +1,5 @@
 package eu.h2020.symbiote.subman.controller;
 
-import java.io.IOException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +63,10 @@ public class RestInterface {
 
 	/**
 	 * Endpoint for communication of federated SMs, when new resources are shared.
+	 * Method checks that sender platform is in federations where resource is being shared,
+	 * it validates security headers and if everything is ok, it forwards received data
+	 * to PR component.
+	 * 
 	 * @param httpHeaders
 	 * @param receivedJson
 	 * @return
@@ -82,10 +84,10 @@ public class RestInterface {
 			return new ResponseEntity<>("Received message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST);
 		}
 		
-		//assuming all received federatedResources are from the same request-sender platform
 		String senderPlatformId = receivedMessage.getNewFederatedResources().get(0).getPlatformId();
-		//for every FedRes check if sender platformId is in federation specified with federationId
-		if(!checkPlatformIdInFederationsCondition1(senderPlatformId, receivedMessage))return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		//for every FedRes check if sender platformId is in federations where fedRes is being shared
+		if(!checkPlatformIdInFederationsCondition1(senderPlatformId, receivedMessage))
+			return new ResponseEntity<>("Sender not allowed to share all received fedrated resources!",HttpStatus.BAD_REQUEST);
 
 		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
 				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
@@ -97,7 +99,7 @@ public class RestInterface {
 		//forward message to PR via RMQ
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRaddedOrUpdatedFedResRK, receivedMessage);
 
-		logger.info("Request succesfully executed!");
+		logger.info("ResourcesAddedOrUpdated request succesfully processed!");
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
 
@@ -105,6 +107,10 @@ public class RestInterface {
 
 	/**
 	 * Endpoint for communication of federated SMs, when shared resources are removed.
+	 * Method checks that all federated resources exist, and that the platform that shared
+	 * them is allowed to delete them. It also validates security headers and if everything is ok,
+	 * received data is forwarded to PR component.
+	 * 
 	 * @param httpHeaders
 	 * @param receivedJson
 	 * @return
@@ -117,12 +123,12 @@ public class RestInterface {
 		
 		try {
 			receivedMessage = om.readValue(receivedJson, ResourcesDeletedMessage.class);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			logger.info("Exception trying to map received json to ResourcesDeletedMessage object!");
 			return new ResponseEntity<>("Received message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST);
 		}
 
-        //check that platform that shared received fedRes is in federations where the resource is being unshared(received in request)
+        //check that platform that shared received fedRes is in federations where the resource is being unshared
 		if(!checkPlatformIdInFederationsCondition2(receivedMessage))
 		    return new ResponseEntity<>("The platform that shared the resource is not in the federation",
                     HttpStatus.BAD_REQUEST);
@@ -140,7 +146,7 @@ public class RestInterface {
         //forward message to PR via RMQ (check if single or list)
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, receivedMessage);
 
-		logger.info("Request succesfully executed!");
+		logger.info("ResourcesDeleted request succesfully processed!");
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
 	}
@@ -158,7 +164,8 @@ public class RestInterface {
 	}
 	
 	/**
-	 * Method checks if senderPlatformId is in all federations where resource is being shared.
+	 * Method checks if senders PlatformId is in all federations where federated resource is being shared.
+	 * Returns true, if sender id is in federations where resource is shared, or false if not.
 	 * 
 	 * @param senderPlatformId
 	 * @param receivedMessage
@@ -185,6 +192,15 @@ public class RestInterface {
 		return true;
 	}
 	
+	/**
+	 * Method checks that  platform which shared federated resource, is in all
+	 * federations where it is being deleted. It returns true if ok, and false if 
+	 * there are non-existing fedearted resources or federations, or if federated resource 
+	 * is shared by a platform that is not in federations where it is being deleted.
+	 * 
+	 * @param rdm
+	 * @return
+	 */
 	public boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
 
 	    boolean requestOk = false;
