@@ -18,11 +18,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
+import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
+import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;
 
 /**
  * SubscriptionManager REST interface.
@@ -38,6 +40,9 @@ public class RestInterface {
 
 	private SecurityManager securityManager;
 	
+	@Value("${platform.id}")
+	private String platformId;
+	
 	@Value("${rabbit.exchange.platformRegistry.name}")
 	private String PRexchange;
 	
@@ -50,6 +55,8 @@ public class RestInterface {
 	private FederationRepository fedRepo;
 
 	private FederatedResourceRepository fedResRepo;
+	
+	private SubscriptionRepository subRepo;
 	
 	public static ObjectMapper om = new ObjectMapper();
 	
@@ -151,10 +158,36 @@ public class RestInterface {
 				(String) securityResponse.getBody());
 	}
 	
+	/**
+	 * Method receives subscription definition from platform owner.
+	 * platformId of defined subscription must match this platformId,
+	 * and then subscription is stored to mongoDB.
+	 * 
+	 * @param httpHeaders
+	 * @param receivedJson
+	 * @return
+	 */
 	@RequestMapping(value = "/subscriptionManager/subscribe", method = RequestMethod.POST)
 	public ResponseEntity<?> subscriptionDefinition(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
-		//TODO IMPLEMENT
-		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
+
+		logger.info("Platform owner subscription definition HTTP-POST request received.");
+		Subscription subscription;
+
+		try {
+			subscription = om.readValue(receivedJson, Subscription.class);
+		} catch (Exception e) {
+			logger.info("Exception trying to map received json to Subscription object!");
+			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
+		}
+		
+		//check that platformId matches the one of the platform
+		if(!subscription.getPlatformId().equals(platformId))
+			return new ResponseEntity<>("PlatformId check failed!", HttpStatus.BAD_REQUEST);
+		
+		//if everything is ok, update platform subscription in mongoDB
+		subRepo.save(subscription);
+		
+		return new ResponseEntity<>(HttpStatus.OK);
 	}
 	
 	@RequestMapping(value = "/subscriptionManager/subscription", method = RequestMethod.POST)
