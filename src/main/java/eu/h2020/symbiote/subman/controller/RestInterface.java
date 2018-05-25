@@ -61,11 +61,12 @@ public class RestInterface {
 	public static ObjectMapper om = new ObjectMapper();
 	
 	@Autowired
-    public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager, FederationRepository fedRepo, FederatedResourceRepository fedResRepo) {
+    public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager, FederationRepository fedRepo, FederatedResourceRepository fedResRepo, SubscriptionRepository subscriptionRepository) {
         this.rabbitManager = rabbitManager;
         this.securityManager = securityManager;
         this.fedRepo = fedRepo;
         this.fedResRepo = fedResRepo;
+        this.subRepo = subscriptionRepository;
     }
 
 	/**
@@ -181,12 +182,14 @@ public class RestInterface {
 		}
 		
 		//check that platformId matches the one of the platform
-		if(!subscription.getPlatformId().equals(platformId))
+		if(!subscription.getPlatformId().equals(platformId)) {
+			logger.info("Matching failure of received platformId and this platformId!");
 			return new ResponseEntity<>("PlatformId check failed!", HttpStatus.BAD_REQUEST);
-		
+		}
+
 		//if everything is ok, update platform subscription in mongoDB
 		subRepo.save(subscription);
-		
+
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
 	
