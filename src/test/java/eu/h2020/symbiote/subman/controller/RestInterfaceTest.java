@@ -1,7 +1,6 @@
 package eu.h2020.symbiote.subman.controller;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
@@ -18,8 +17,6 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,16 +34,13 @@ import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.security.commons.SecurityConstants;
-import eu.h2020.symbiote.subman.controller.RestInterface;
-import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 
+
 @RunWith(MockitoJUnitRunner.class)
 public class RestInterfaceTest {
-	
-	private static final Logger logger = LoggerFactory.getLogger(RestInterfaceTest.class);
 	
 	ObjectMapper om = new ObjectMapper();
 	
@@ -114,7 +108,7 @@ public class RestInterfaceTest {
 	@Test
 	public void resourcesAddedOrUpdatedBadRequestConditionFailure() throws JsonProcessingException{
 		when(fedRepo.findOne("fed1")).thenReturn(null);
-		assertEquals(new ResponseEntity<>(HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
+		assertEquals(new ResponseEntity<>("Sender not allowed to share all received fedrated resources!", HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
 	}
 	
 	@Test
@@ -211,5 +205,4 @@ public class RestInterfaceTest {
 		headers.put(SecurityConstants.SECURITY_RESPONSE_HEADER, Collections.singletonList(null));
 		assertEquals(new ResponseEntity<>(headers, HttpStatus.OK), restInterface.resourcesDeleted(new HttpHeaders(), om.writeValueAsString(deleted)));
 	}
-
 }
