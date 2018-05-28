@@ -419,16 +419,9 @@ public class Consumers {
 	 * @param federation
 	 */
 	protected void processFederationCreated(Federation federation){
+		
 		//check if received federation contains this platform
-		boolean federationContainsThisPlatform = false;
-		for(FederationMember fedMember : federation.getMembers()){
-			if(fedMember.getPlatformId().equals(platformId)) {
-				federationContainsThisPlatform = true;
-				break;
-			}
-		}
-
-		if(federationContainsThisPlatform){
+		if(federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList()).contains(platformId)){
 			for(FederationMember fedMember : federation.getMembers()){
 				if(fedMember.getPlatformId().equals(platformId))continue; //skip procedure for this platform
 				//map keeps number of common federations of this platform with others
