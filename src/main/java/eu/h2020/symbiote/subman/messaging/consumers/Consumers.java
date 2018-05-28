@@ -432,8 +432,8 @@ public class Consumers {
 			for(FederationMember fedMember : federation.getMembers()){
 				if(fedMember.getPlatformId().equals(platformId))continue; //skip procedure for this platform
 				//map keeps number of common federations of this platform with others
-				processFedMemberAdding(fedMember.getPlatformId());
 				addressBook.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
+				processFedMemberAdding(fedMember.getPlatformId());
 			}
 		}
 	}
@@ -468,8 +468,8 @@ public class Consumers {
 				if(newFedMembersId.equals(platformId))continue;
 				//if new federation member is added in this updated federation...
 				else if(!oldMembers.contains(newFedMembersId)){
-					processFedMemberAdding(newFedMembersId);
 					addressBook.put(newFedMembersId, federation.getMembers().stream().filter(x -> newFedMembersId.equals(x.getPlatformId())).findAny().get().getInterworkingServiceURL());
+					processFedMemberAdding(newFedMembersId);
 				}
 			}			
 			for(String oldFedMembersId : oldMembers){
