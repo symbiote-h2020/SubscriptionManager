@@ -22,6 +22,15 @@ public class SecuredRequestSender {
 	
 	private static RestTemplate restTemplate = new RestTemplate();
 	
+	/**
+	 * Method sends HTTP POST request with corresponding security headers that contains given JSON string
+	 * to the given url. It returns received response entity.
+	 * 
+	 * @param securityRequest
+	 * @param objectJson
+	 * @param completeRequestUrl
+	 * @return
+	 */
 	public static ResponseEntity<?> sendSecuredRequest(SecurityRequest securityRequest, String objectJson, String completeRequestUrl) {
 		
 		Map<String, String> securityRequestHeaders;
