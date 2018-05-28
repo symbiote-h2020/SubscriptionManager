@@ -70,6 +70,7 @@ public class Consumers {
 	//<platformId,numberOfCommonFederations>
 	private static Map<String, Integer> numberOfCommonFederations;
 	
+	//<platformId, platformInterworkingServiceURL>
 	private static Map<String, String> addressBook;
 
 	@Autowired
@@ -377,7 +378,7 @@ public class Consumers {
                 }
             } else
                 logger.info(
-                        "Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
+                        "Failed to broadcast resourcesDeleted message due to the securityRequest creation failure!");
         } catch (Exception e) {
             logger.warn("Exception thrown during removeFederatedResource", e);
         }
@@ -519,8 +520,41 @@ public class Consumers {
 			Subscription subscription = new Subscription();
 			subscription.setPlatformId(newFedMembersId);
 			subscriptionRepo.save(subscription);
-			//TODO SEND HTTP-POST OF OWN SUBSCRIPTION
-		}
+			
+			//send HTTP-POST of own subscription
+			SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+            if (securityRequest != null) {
+                logger.debug("Security Request created successfully!");
+
+                // if the creation of securityRequest is successful send it to the federated platform           
+                    ResponseEntity<?> serviceResponse = null;
+                    try {
+                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
+                                mapper.writeValueAsString(subscriptionRepo.findOne(platformId)), addressBook.get(newFedMembersId).replaceAll("/+$", "") + "/subscriptionManager" + "/subscription");
+                    } catch (Exception e) {
+                        logger.warn("Exception thrown during sending own subscription to platform: " + newFedMembersId , e);
+                    }
+
+                    logger.debug("ServiceResponse = " + serviceResponse);
+
+                    //verify serviceResponse
+                    try {
+                        boolean verifiedResponse = securityManager.verifyReceivedResponse(
+                                serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
+                                "subscriptionManager", newFedMembersId);
+                        if (verifiedResponse)
+                            logger.debug("Sending of own subscription message to platform " + newFedMembersId
+                                    + " successfull!");
+                        else
+                            logger.warn("Failed to send own subscription message to platform " + newFedMembersId
+                                    + " due to the response verification error!");
+                    } catch (Exception e) {
+                        logger.warn("Exception thrown during verifying service response", e);
+                    }
+            } else
+                logger.info(
+                        "Failed to send own subscription message due to securityRequest creation failure!");
+        }
 	}
 	
 }
