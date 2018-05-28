@@ -1,5 +1,8 @@
 package eu.h2020.symbiote.subman.controller;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,7 +92,7 @@ public class RestInterface {
 			receivedMessage = om.readValue(receivedJson, ResourcesAddedOrUpdatedMessage.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to ResourcesAddedOrUpdatedMessage object!");
-			return new ResponseEntity<>("Received message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST);
 		}
 		
 		String senderPlatformId = receivedMessage.getNewFederatedResources().get(0).getPlatformId();
@@ -133,7 +136,7 @@ public class RestInterface {
 			receivedMessage = om.readValue(receivedJson, ResourcesDeletedMessage.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to ResourcesDeletedMessage object!");
-			return new ResponseEntity<>("Received message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST);
 		}
 
         //check that platform that shared received fedRes is in federations where the resource is being unshared
@@ -189,14 +192,51 @@ public class RestInterface {
 
 		//if everything is ok, update platform subscription in mongoDB
 		subRepo.save(subscription);
-
+		logger.info("Subscribe request succesfully processed!");
+		
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
 	
+	/**
+	 * Method receives subscription from federated platform.
+	 * After security headers verification, it is also verified that
+	 * sender platform and this platform are federated. If true, subscription is 
+	 * stored to mongoDB and HTTP OK response is sent.
+	 * 
+	 * @param httpHeaders
+	 * @param receivedJson
+	 * @return
+	 */
 	@RequestMapping(value = "/subscriptionManager/subscription", method = RequestMethod.POST)
-	public ResponseEntity<?> subscriptionRemoval(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
-		//TODO IMPLEMENT
-		return new ResponseEntity<>(httpHeaders, HttpStatus.LOCKED);
+	public ResponseEntity<?> foreignSubscriptionDefinition(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
+		
+		logger.info("Subscription definition HTTP-POST request received.");
+		Subscription subscription;
+		
+		try {
+			subscription = om.readValue(receivedJson, Subscription.class);
+		} catch (Exception e) {
+			logger.info("Exception trying to map received json to Subscription object!");
+			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
+		}
+		
+		//check that sender platform id and this platform id are in federation
+		if(!checkPlatformIdInFederationsCondition3(subscription.getPlatformId()))
+			return new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST);
+		
+		//verify security headers
+		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
+				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, subscription.getPlatformId());
+		if (securityResponse.getStatusCode() != HttpStatus.OK) {
+			logger.info("Request failed authorization check!");
+			return securityResponse;
+		}
+		
+		subRepo.save(subscription);
+		logger.info("Subscription request succesfully processed!");
+		
+		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
+				(String) securityResponse.getBody());
 	}
 	
 	/**
@@ -265,6 +305,22 @@ public class RestInterface {
 			}			
 		}
 		return true;
+	}
+	
+	/**
+	 * Method checks if received senderPlatformId and this platformId are in federation.
+	 * 
+	 * @param senderPlatformId
+	 * @return
+	 */
+	public boolean checkPlatformIdInFederationsCondition3(String senderPlatformId) {
+		
+		for(Federation federation : fedRepo.findAll()) {			
+			//if this platform and sender platform are in federation...
+			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+			if(memberIds.contains(platformId) && memberIds.contains(senderPlatformId)) return true;			
+		}
+		return false;
 	}
 	
 }
