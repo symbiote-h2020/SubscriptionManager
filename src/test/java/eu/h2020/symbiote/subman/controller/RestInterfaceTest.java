@@ -97,12 +97,12 @@ public class RestInterfaceTest {
 	
 	@Test
 	public void resourcesAddedOrUpdatedBadRequestMapperFailure(){
-		assertEquals(new ResponseEntity<>("Received message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), "sss"));
+		assertEquals(new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), "sss"));
 	}
 	
 	@Test
 	public void resourcesDeletedBadRequestMapperFailure(){
-		assertEquals(new ResponseEntity<>("Received message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), "sss"));
+		assertEquals(new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST), restInterface.resourcesDeleted(new HttpHeaders(), "sss"));
 	}
 	
 	@Test
