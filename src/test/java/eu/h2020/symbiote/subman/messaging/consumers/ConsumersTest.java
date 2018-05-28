@@ -1,8 +1,10 @@
 package eu.h2020.symbiote.subman.messaging.consumers;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 
 import java.util.Arrays;
@@ -33,7 +35,13 @@ import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
+import eu.h2020.symbiote.model.cim.Actuator;
+import eu.h2020.symbiote.model.cim.Device;
+import eu.h2020.symbiote.model.cim.Location;
 import eu.h2020.symbiote.model.cim.Resource;
+import eu.h2020.symbiote.model.cim.Sensor;
+import eu.h2020.symbiote.model.cim.Service;
+import eu.h2020.symbiote.model.cim.SymbolicLocation;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
@@ -391,4 +399,70 @@ public class ConsumersTest {
     	current = fedResRepo.findAll();
     	assertEquals(1, current.size());  	
     }
+    
+    @Test
+    public void SubscriptionResourceTypeMatcher() throws InterruptedException{
+    	
+    	Subscription s = new Subscription();
+    	
+    	Resource r = new Service();
+    	r.setInterworkingServiceURL("dafsfa");
+    	CloudResource crSub = new CloudResource();
+    	crSub.setResource(r);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	//check service
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	r = new Device();
+    	r.setInterworkingServiceURL("dafsfa");
+    	crSub.setResource(r);
+    	//check device
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	s.getResourceType().put("device", false);
+    	
+    	r = new Sensor();
+    	r.setInterworkingServiceURL("dafsfa");
+    	crSub.setResource(r);
+    	//check sensor
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	r = new Actuator();
+    	r.setInterworkingServiceURL("dafsfa");
+    	crSub.setResource(r);
+    	//check actuator
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	s.getResourceType().put("actuator", false);
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    }
+    
+    @Test
+    public void SubscriptionResourceMatcher() throws InterruptedException{
+    	
+    	Subscription s = new Subscription();
+    	s.setLocations(Arrays.asList("Split"));
+    	
+    	Device d = new Sensor();
+    	d.setInterworkingServiceURL("dafsfa");
+    	 	
+    	CloudResource crSub = new CloudResource();
+    	crSub.setResource(d);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	Location l = new SymbolicLocation();
+    	l.setName("Split");
+    	d.setLocatedAt(l);
+
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	s.setLocations(Arrays.asList("Zagreb"));
+
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    }
+    
 }
