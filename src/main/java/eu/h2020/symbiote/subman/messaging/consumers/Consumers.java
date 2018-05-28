@@ -233,9 +233,12 @@ public class Consumers {
 
                     ResponseEntity<?> serviceResponse = null;
                     try {
-                        serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(
-                                securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
-                                urls.get(entry.getKey()));
+//                        serviceResponse = SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(
+//                                securityRequest, new ResourcesAddedOrUpdatedMessage(resourcesForSending),
+//                                urls.get(entry.getKey()));
+                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(
+                                securityRequest, mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
+                                urls.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate");
                     } catch (Exception e) {
                         logger.warn("Exception thrown during sending addedOrUpdatedFederatedResource", e);
                     }
@@ -352,8 +355,10 @@ public class Consumers {
 
                     ResponseEntity<?> serviceResponse = null;
                     try {
-                         serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest,
-                                new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
+//                         serviceResponse = SecuredRequestSender.sendSecuredResourcesDeleted(securityRequest,
+//                                new ResourcesDeletedMessage(deleteMessage), urls.get(entry.getKey()));
+                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
+                                mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)), urls.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/delete");
                     } catch (Exception e) {
                         logger.warn("Exception thrown during sending unsharedFederatedResource", e);
                     }

@@ -13,23 +13,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
-import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 
 public class SecuredRequestSender {
 	
 	private static final Logger logger = LoggerFactory.getLogger(RestInterface.class);
 	
-	private static ObjectMapper om = new ObjectMapper();
-	
 	private static RestTemplate restTemplate = new RestTemplate();
 	
-	public static ResponseEntity<?> sendSecuredResourcesAddedOrUpdated(SecurityRequest securityRequest, ResourcesAddedOrUpdatedMessage rsMsg, String interworkingServiceUrl) {
-
-		String url = interworkingServiceUrl.replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate";
+	public static ResponseEntity<?> sendSecuredRequest(SecurityRequest securityRequest, String objectJson, String completeRequestUrl) {
 		
 		Map<String, String> securityRequestHeaders;
 		HttpHeaders httpHeaders = new HttpHeaders();
@@ -41,50 +34,15 @@ public class SecuredRequestSender {
 	        }
 	        logger.debug("request headers: " + httpHeaders);
 	        
-	        HttpEntity<String> httpEntity = new HttpEntity<>(om.writeValueAsString(rsMsg), httpHeaders);
+	        HttpEntity<String> httpEntity = new HttpEntity<>(objectJson, httpHeaders);
 	        ResponseEntity<?> responseEntity = null;
 	        try {
-				logger.debug("url = " + url);
+	        	logger.debug("body = " + completeRequestUrl);
+				logger.debug("url = " + completeRequestUrl);
 
-				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
+				responseEntity = restTemplate.exchange(completeRequestUrl, HttpMethod.POST, httpEntity, Object.class);
 
 	            logger.debug("response = " + responseEntity);
-	            logger.debug("headers = " + responseEntity.getHeaders());
-	            logger.debug("body = " + responseEntity.getBody());
-	            
-	            return responseEntity;
-	        }  catch (Exception e) {
-	            logger.warn("Error executing HTTP POST request!");
-	            return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
-	        }
-	        
-		} catch (JsonProcessingException e) {
-			logger.warn("Error parsing securityRequest headers!");
-			return new ResponseEntity<>(e.getMessage(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
-		}
-	}
-	
-	public static ResponseEntity<?> sendSecuredResourcesDeleted(SecurityRequest securityRequest, ResourcesDeletedMessage rsMsg, String interworkingServiceUrl) {
-
-		String url = interworkingServiceUrl.replaceAll("/+$", "") + "/subscriptionManager" + "/delete";
-		Map<String, String> securityRequestHeaders;
-		HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-		try {
-			securityRequestHeaders = securityRequest.getSecurityRequestHeaderParams();			
-			for (Map.Entry<String, String> entry : securityRequestHeaders.entrySet()) {
-	            httpHeaders.add(entry.getKey(), entry.getValue());
-	        }
-	        logger.debug("request headers: " + httpHeaders);
-	        
-	        HttpEntity<String> httpEntity = new HttpEntity<>(om.writeValueAsString(rsMsg), httpHeaders);
-	        ResponseEntity<?> responseEntity = null;
-	        try {
-				logger.debug("url = " + url);
-
-				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, Object.class);
-
-				logger.debug("response = " + responseEntity);
 	            logger.debug("headers = " + responseEntity.getHeaders());
 	            logger.debug("body = " + responseEntity.getBody());
 	            

@@ -17,6 +17,9 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import eu.h2020.symbiote.cloud.model.internal.CloudResource;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
@@ -37,6 +40,8 @@ public class SecuredRequestSenderTest {
 	
 	@InjectMocks
 	SecuredRequestSender srs;
+	
+	ObjectMapper om = new ObjectMapper();
 	
 	static ResourcesAddedOrUpdatedMessage toSend;
 	static ResourcesDeletedMessage deleted;
@@ -68,16 +73,16 @@ public class SecuredRequestSenderTest {
 	}
 	
 	@Test
-	public void sendAddedOrUpdatedTest(){
+	public void sendAddedOrUpdatedTest() throws JsonProcessingException{
 		
 		SecurityRequest sr= new SecurityRequest("guestTokenDummy");
-		assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, SecuredRequestSender.sendSecuredResourcesAddedOrUpdated(sr, toSend, "localhost:8080").getStatusCode());
+		assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, SecuredRequestSender.sendSecuredRequest(sr, om.writeValueAsString(toSend), "localhost:8080".replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate").getStatusCode());
 	}
 	
 	@Test
-	public void sendDeletedTest(){
+	public void sendDeletedTest() throws JsonProcessingException{
 		
 		SecurityRequest sr= new SecurityRequest("guestTokenDummy");
-		assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, SecuredRequestSender.sendSecuredResourcesDeleted(sr, deleted, "localhost:8080").getStatusCode());
+		assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, SecuredRequestSender.sendSecuredRequest(sr, om.writeValueAsString(deleted), "localhost:8080".replaceAll("/+$", "") + "/subscriptionManager" + "/delete").getStatusCode());
 	}
 }
