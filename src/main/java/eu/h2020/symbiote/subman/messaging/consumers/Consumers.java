@@ -30,6 +30,12 @@ import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
+import eu.h2020.symbiote.model.cim.Actuator;
+import eu.h2020.symbiote.model.cim.Device;
+import eu.h2020.symbiote.model.cim.Location;
+import eu.h2020.symbiote.model.cim.Resource;
+import eu.h2020.symbiote.model.cim.Sensor;
+import eu.h2020.symbiote.model.cim.Service;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.security.commons.SecurityConstants;
@@ -160,7 +166,7 @@ public class Consumers {
             logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
 
             // add received FederatedResource to local MongoDB
-            for (FederatedResource fr : rsMsg.getNewFederatedResources()) {
+            for (FederatedResource fr : rsMsg.getNewFederatedResources()) {	
                 fedResRepo.save(fr);
                 logger.info("Federated resource with id " + fr.getSymbioteId() + " added to repository and is exposed to " +
                     fr.getFederations());
@@ -184,28 +190,30 @@ public class Consumers {
                     	/**
                     	 * CHECK IF CURRENT FEDERATION MEMEBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
                     	 */
+                    	if(isSubscribed(subscriptionRepo.findOne(fm.getPlatformId()), fr)) {
                     	
-                        // if platform is not yet in a list for receiving
-                        // notification, add it
-                        if (!platformMessages.containsKey(fm.getPlatformId()))
-                            platformMessages.put(fm.getPlatformId(), new HashMap<>());
-
-
-                        Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
-
-                        // if there is not entry in the platformMap for this
-                        // federatedResource create it
-                        if (!platformMap.containsKey(fr.getSymbioteId())) {
-
-                            FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
-                            clonedFr.clearPrivateInfo();
-                            platformMap.put(clonedFr.getSymbioteId(), clonedFr);
-                        }
-
-                        // add the federation info of currently iterated federation
-                        FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
-                        platformFederatedResource.shareToNewFederation(interestedFederationId, fr.getCloudResource()
-                                .getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
+	                        // if platform is not yet in a list for receiving
+	                        // notification, add it
+	                        if (!platformMessages.containsKey(fm.getPlatformId()))
+	                            platformMessages.put(fm.getPlatformId(), new HashMap<>());
+	
+	
+	                        Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
+	
+	                        // if there is not entry in the platformMap for this
+	                        // federatedResource create it
+	                        if (!platformMap.containsKey(fr.getSymbioteId())) {
+	
+	                            FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
+	                            clonedFr.clearPrivateInfo();
+	                            platformMap.put(clonedFr.getSymbioteId(), clonedFr);
+	                        }
+	
+	                        // add the federation info of currently iterated federation
+	                        FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
+	                        platformFederatedResource.shareToNewFederation(interestedFederationId, fr.getCloudResource()
+	                                .getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
+                    	}
                     }
                 }
             }
@@ -550,8 +558,75 @@ public class Consumers {
         }
 	}
 	
-//	private boolean isSubscribed (String platformId) {
-//		
-//	}
+	/**
+	 * Method checks if platform with the given id is subscribed to
+	 * the specified federatedResource, according to its subscription.
+	 *  
+	 * @param platformId
+	 * @param fedRes
+	 * @return
+	 */
+	public static boolean isSubscribed (Subscription platformSubscription, FederatedResource fedRes) {
+		
+		//resourceType matching condition
+		if(!resourceTypeMatching(platformSubscription.getResourceType(),fedRes.getCloudResource().getResource()))
+			return false;
+		
+		//if subscription has location condition check it
+		if(platformSubscription.getLocations() != null && platformSubscription.getLocations().size() > 0) {
+			//location matching condition
+			if(!locationMatching(platformSubscription.getLocations(),fedRes.getCloudResource().getResource()))
+				return false;
+		}
+		
+		return true;
+	}
+	
+	/**
+	 * Method does resourceType matching of given Resource and subscription resourceType map.
+	 * 
+	 * @param resourceType
+	 * @param resource
+	 * @return
+	 */
+	public static boolean resourceTypeMatching(Map<String, Boolean> resourceType, Resource resource) {
+		
+		if(resourceType.get("service") && resource instanceof Service) {
+			logger.info("service");
+			return true;
+		}
+
+		else if (resourceType.get("device") && resource instanceof Device) {
+			logger.info("device");
+			return true;
+		}
+		
+		else if (resourceType.get("sensor") && resource instanceof Sensor) {
+			logger.info("sensor");
+			return true;
+		}
+		
+		else if (resourceType.get("actuator") && resource instanceof Actuator) {
+			logger.info("actuator");
+			return true;
+		}
+		
+		else return false;
+	}
+	
+	/**
+	 * Method does location matching of given resource and subscription list of locations.
+	 * 
+	 * @param locations
+	 * @param resource
+	 * @return
+	 */
+	public static boolean locationMatching(List<String> locations, Resource resource) {
+		if(resource instanceof Device) {
+			if(((Device) resource).getLocatedAt() != null && locations.contains(((Device) resource).getLocatedAt().getName()))return true;
+			else return false;
+		}
+		else return false;
+	}
 	
 }
