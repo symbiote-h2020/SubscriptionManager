@@ -155,9 +155,6 @@ public class Consumers {
             // Map<PlatformId, Map<FederatedResourceId, FederatedResource>>
             Map<String, Map<String, FederatedResource>> platformMessages = new HashMap<>();
 
-            // Map<PlatformId, interworkingServiceUrl>
-            Map<String, String> urls = new HashMap<>();
-
             // convert received RMQ message to ResourcesAddedOrUpdatedMessage object
             ResourcesAddedOrUpdatedMessage rsMsg = (ResourcesAddedOrUpdatedMessage) messageConverter.fromMessage(msg);
             logger.info("Received ResourcesAddedOrUpdatedMessage from Platform Registry");
@@ -190,10 +187,9 @@ public class Consumers {
                     	
                         // if platform is not yet in a list for receiving
                         // notification, add it
-                        if (!platformMessages.containsKey(fm.getPlatformId())) {
+                        if (!platformMessages.containsKey(fm.getPlatformId()))
                             platformMessages.put(fm.getPlatformId(), new HashMap<>());
-                            urls.put(fm.getPlatformId(), fm.getInterworkingServiceURL());
-                        }
+
 
                         Map<String, FederatedResource> platformMap = platformMessages.get(fm.getPlatformId());
 
@@ -236,7 +232,7 @@ public class Consumers {
                     try {
                     	serviceResponse = SecuredRequestSender.sendSecuredRequest(
                                 securityRequest, mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
-                                urls.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate");
+                                addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate");
                     } catch (Exception e) {
                         logger.warn("Exception thrown during sending addedOrUpdatedFederatedResource", e);
                     }
@@ -284,8 +280,6 @@ public class Consumers {
 
             // <platformId,<federatedResourceId, Set<federationsId>>>
             Map<String, Map<String, Set<String>>> platformMessages = new HashMap<String, Map<String, Set<String>>>();
-            // <platformId,interworkingServiceUrl
-            Map<String, String> urls = new HashMap<String, String>();
 
             logger.debug("Federated resources to be unshared = " + rdDel.getDeletedFederatedResourcesMap().keySet());
 
@@ -325,10 +319,9 @@ public class Consumers {
                     	 * CHECK IF CURRENT FEDERATION MEMBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
                     	 */
                     	
-                        if (!platformMessages.containsKey(fedMember.getPlatformId())) {
+                        if (!platformMessages.containsKey(fedMember.getPlatformId()))
                             platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
-                            urls.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
-                        }
+
                         Map<String, Set<String>> currentPlatformMessageMap = platformMessages
                                 .get(fedMember.getPlatformId());
                         if (!currentPlatformMessageMap.containsKey(entry.getKey()))
@@ -354,7 +347,7 @@ public class Consumers {
                     ResponseEntity<?> serviceResponse = null;
                     try {
                     	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
-                                mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)), urls.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/delete");
+                                mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)), addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/delete");
                     } catch (Exception e) {
                         logger.warn("Exception thrown during sending unsharedFederatedResource", e);
                     }
@@ -556,5 +549,9 @@ public class Consumers {
                         "Failed to send own subscription message due to securityRequest creation failure!");
         }
 	}
+	
+//	private boolean isSubscribed (String platformId) {
+//		
+//	}
 	
 }
