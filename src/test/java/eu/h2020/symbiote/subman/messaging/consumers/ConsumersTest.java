@@ -134,8 +134,13 @@ public class ConsumersTest {
 		fm1 = new FederationMember();
 		fm1.setPlatformId(thisPlatformId);
 		f = new Federation();
-    	f.setId("fedId");
+//    	f.setId("fedId");
+		f.setId("todel");
 		f.setMembers(Arrays.asList(fm));
+		
+		Subscription s = new Subscription();
+    	s.setPlatformId("todel");
+    	subRepo.save(s);
     }
 
     @Test
@@ -184,48 +189,50 @@ public class ConsumersTest {
 
         federation.setId("exampleId");
         federation.setName("FederationName");
-        federation.setMembers(Arrays.asList(fm));
+        FederationMember fm5 = new FederationMember();
+		fm5.setPlatformId("1950");
+        federation.setMembers(Arrays.asList(fm5));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
 
         TimeUnit.MILLISECONDS.sleep(400);
         //check that there is no subscription created for fm
-        assertNull(subRepo.findOne(fm.getPlatformId()));
+        assertNull(subRepo.findOne(fm5.getPlatformId()));
         
         
         //adding this platform to existing federation
-        federation.setMembers(Arrays.asList(fm,fm1));
+        federation.setMembers(Arrays.asList(fm5,fm1));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
-        //check that now subscription is created for fm
-        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        //check that now subscription is created for fm5
+        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
         
         FederationMember fm2 = new FederationMember();
         fm2.setPlatformId("fm2");
         fm2.setInterworkingServiceURL("fm2-interworking");
-        federation.setMembers(Arrays.asList(fm,fm1,fm2));
+        federation.setMembers(Arrays.asList(fm5,fm1,fm2));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
         //check that now subscription is created for fm2
-        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
         assertNotNull(subRepo.findOne(fm2.getPlatformId()));
         
-        federation.setMembers(Arrays.asList(fm,fm1));
+        federation.setMembers(Arrays.asList(fm5,fm1));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
         //check that now subscription is deleted for fm2
-        assertNotNull(subRepo.findOne(fm.getPlatformId()));
+        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
         assertNull(subRepo.findOne(fm2.getPlatformId()));
         
         //removing this platform from existing federation
-        federation.setMembers(Arrays.asList(fm));
+        federation.setMembers(Arrays.asList(fm5));
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         
         TimeUnit.MILLISECONDS.sleep(400);
-        //check that subscription of fm is removed
-        assertNull(subRepo.findOne(fm.getPlatformId()));
+        //check that subscription of fm5 is removed
+        assertNull(subRepo.findOne(fm5.getPlatformId()));
     }
 
     @Test
@@ -367,7 +374,9 @@ public class ConsumersTest {
     	fr.setFederations(federationDummies);
     	fedResRepo.save(fr);
     	f.setId("todel");
-    	federationRepository.insert(f);
+    	
+    	//federationRepository.insert(f);
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
     	List<FederatedResource> current = fedResRepo.findAll();
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
@@ -375,9 +384,6 @@ public class ConsumersTest {
     	Map<String, Set<String>> toDelete = new HashMap<>();
     	toDelete.put("a@a", federationDummies);
     	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
-  
-    	doReturn(new SecurityRequest("sdad"))
-        .when(securityManager).generateSecurityRequest();
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
     	TimeUnit.MILLISECONDS.sleep(400);
@@ -393,9 +399,6 @@ public class ConsumersTest {
     	f.setId("todel");
     	federationRepository.insert(f);
     	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-    	
-    	doReturn(new SecurityRequest("sdad"))
-        .when(securityManager).generateSecurityRequest();
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
     	TimeUnit.MILLISECONDS.sleep(400);
@@ -582,12 +585,11 @@ public class ConsumersTest {
     
     @Test
     public void addedOrupdatedResources() throws InterruptedException {
-    	Subscription s = new Subscription();
-    	s.setPlatformId("todel");
-    	subRepo.save(s);
     	
     	f.setMembers(Arrays.asList(fm,fm1));
     	federationRepository.save(f);
+    	//rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(500);
     	
     	Set<String> se = new HashSet<>();
     	se.add("todel");
