@@ -36,6 +36,7 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.cim.Actuator;
+import eu.h2020.symbiote.model.cim.Capability;
 import eu.h2020.symbiote.model.cim.Device;
 import eu.h2020.symbiote.model.cim.Location;
 import eu.h2020.symbiote.model.cim.Resource;
@@ -439,7 +440,7 @@ public class ConsumersTest {
     }
     
     @Test
-    public void SubscriptionResourceMatcher() throws InterruptedException{
+    public void SubscriptionLocationMatcher() throws InterruptedException{
     	
     	Subscription s = new Subscription();
     	s.setLocations(Arrays.asList("Split"));
@@ -463,6 +464,83 @@ public class ConsumersTest {
 
     	assertFalse(Consumers.isSubscribed(s, fedResource));
     	
+    }
+    
+    @Test
+    public void SubscriptionObservedPropertyMatcher() throws InterruptedException{
+    	
+    	Subscription s = new Subscription();
+    	s.setObservedProperties(Arrays.asList("temperature", "humidity"));
+    	
+    	Sensor d = new Sensor();
+    	d.setInterworkingServiceURL("dafsfa");
+    	d.setObservesProperty(Arrays.asList("noise"));	
+    	CloudResource crSub = new CloudResource();
+    	crSub.setResource(d);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	d.setObservesProperty(Arrays.asList("temperature"));	
+
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	
+    	d.setObservesProperty(Arrays.asList("temperature", "humidity"));	
+
+    	assertTrue(Consumers.isSubscribed(s, fedResource));	
+    }
+    
+    @Test
+    public void SubscriptionCapabilityMatcher() throws InterruptedException{
+    	
+    	Subscription s = new Subscription();
+    	s.setCapabilities(Arrays.asList("on-off"));
+    	
+    	Actuator d = new Actuator();
+    	d.setInterworkingServiceURL("dafsfa");
+    	Capability cap = new Capability();
+    	cap.setName("move");
+    	d.setCapabilities(Arrays.asList(cap));	
+    	CloudResource crSub = new CloudResource();
+    	crSub.setResource(d);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	cap.setName("on-off");
+    	d.setCapabilities(Arrays.asList(cap));	
+
+    	assertTrue(Consumers.isSubscribed(s, fedResource));	
+    }
+    
+    @Test
+    public void SubscriptionLocationCapabilityMatcher() throws InterruptedException{
+    	
+    	Subscription s = new Subscription();
+    	s.setLocations(Arrays.asList("Split"));
+    	s.setCapabilities(Arrays.asList("on-off"));
+    	
+    	Actuator d = new Actuator();
+    	d.setInterworkingServiceURL("dafsfa");
+    	Capability cap = new Capability();
+    	cap.setName("move");
+    	d.setCapabilities(Arrays.asList(cap));	
+    	CloudResource crSub = new CloudResource();
+    	crSub.setResource(d);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	cap.setName("on-off");
+    	d.setCapabilities(Arrays.asList(cap));	
+
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	Location l = new SymbolicLocation();
+    	l.setName("Split");
+    	d.setLocatedAt(l);
+    	
+    	assertTrue(Consumers.isSubscribed(s, fedResource));
     }
     
 }
