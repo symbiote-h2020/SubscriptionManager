@@ -498,12 +498,17 @@ public class ConsumersTest {
     	
     	Actuator d = new Actuator();
     	d.setInterworkingServiceURL("dafsfa");
+    	
     	Capability cap = new Capability();
     	cap.setName("move");
-    	d.setCapabilities(Arrays.asList(cap));	
+    	
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(d);
     	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	d.setCapabilities(Arrays.asList(cap));	
     	
     	assertFalse(Consumers.isSubscribed(s, fedResource));
     	
@@ -511,6 +516,12 @@ public class ConsumersTest {
     	d.setCapabilities(Arrays.asList(cap));	
 
     	assertTrue(Consumers.isSubscribed(s, fedResource));	
+    	
+    	Sensor sd = new Sensor();
+    	sd.setInterworkingServiceURL("dafsfaaa");
+    	crSub.setResource(sd);
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
     }
     
     @Test
