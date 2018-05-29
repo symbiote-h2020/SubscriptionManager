@@ -112,16 +112,17 @@ public class ConsumersTest {
         federationRepository.deleteAll();
         fedResRepo.deleteAll();
         subRepo.deleteAll();
-        resDummy = new Resource();
+        resDummy = new Service();
 		resDummy.setInterworkingServiceURL("dummyUrl");
 		dummy = new CloudResource();
 		dummy.setResource(resDummy);
-		FederationInfoBean fib = new FederationInfoBean();
-		Map<String, ResourceSharingInformation> map = new HashMap<>();
+		
 		ResourceSharingInformation rsi = new ResourceSharingInformation();
 		rsi.setBartering(true);
-		map.put("todel", rsi);
-		fib.setSharingInformation(map);
+		Map<String, ResourceSharingInformation> rsiMap = new HashMap<>();
+		rsiMap.put("todel", rsi);
+		FederationInfoBean fib = new FederationInfoBean();
+		fib.setSharingInformation(rsiMap);
 		dummy.setFederationInfo(fib);
 		
 		fr = new FederatedResource("a@a",dummy);
@@ -133,6 +134,7 @@ public class ConsumersTest {
 		fm1 = new FederationMember();
 		fm1.setPlatformId(thisPlatformId);
 		f = new Federation();
+    	f.setId("fedId");
 		f.setMembers(Arrays.asList(fm));
     }
 
@@ -452,17 +454,23 @@ public class ConsumersTest {
     	crSub.setResource(d);
     	FederatedResource fedResource= new FederatedResource("a@a",crSub);
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // no location
     	
     	Location l = new SymbolicLocation();
     	l.setName("Split");
     	d.setLocatedAt(l);
 
-    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	assertTrue(Consumers.isSubscribed(s, fedResource)); // location matching
     	
     	s.setLocations(Arrays.asList("Zagreb"));
 
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // location missmatch
+    	
+    	Service sd = new Service();
+    	sd.setInterworkingServiceURL("dafsfa");
+    	crSub.setResource(sd); 
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // not instance of device
     	
     }
     
@@ -479,15 +487,29 @@ public class ConsumersTest {
     	crSub.setResource(d);
     	FederatedResource fedResource= new FederatedResource("a@a",crSub);
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //check op name missmatch
     	
     	d.setObservesProperty(Arrays.asList("temperature"));	
 
-    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	assertTrue(Consumers.isSubscribed(s, fedResource)); // op matching one property
     	
     	d.setObservesProperty(Arrays.asList("temperature", "humidity"));	
 
-    	assertTrue(Consumers.isSubscribed(s, fedResource));	
+    	assertTrue(Consumers.isSubscribed(s, fedResource));	//matching all properties
+    	
+    	d.setObservesProperty(Arrays.asList());	
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // empty observedProperties
+    	
+    	d.setObservesProperty(null);	
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // observedProperties is null
+    	
+    	Actuator sd = new Actuator();
+    	sd.setInterworkingServiceURL("dafsfa");
+    	
+    	crSub.setResource(sd);  	
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //check resource not instance of sensor
     }
     
     @Test
@@ -506,22 +528,26 @@ public class ConsumersTest {
     	crSub.setResource(d);
     	FederatedResource fedResource= new FederatedResource("a@a",crSub);
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // check capabilities null
     	
-    	d.setCapabilities(Arrays.asList(cap));	
+    	d.setCapabilities(Arrays.asList());
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); // check empty capabilities
+    	
+    	d.setCapabilities(Arrays.asList(cap));
+    	
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //check capability name missmatch
     	
     	cap.setName("on-off");
     	d.setCapabilities(Arrays.asList(cap));	
 
-    	assertTrue(Consumers.isSubscribed(s, fedResource));	
+    	assertTrue(Consumers.isSubscribed(s, fedResource));	//check matching
     	
     	Sensor sd = new Sensor();
     	sd.setInterworkingServiceURL("dafsfaaa");
     	crSub.setResource(sd);
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //check resource not instance of actuator
     }
     
     @Test
@@ -540,18 +566,49 @@ public class ConsumersTest {
     	crSub.setResource(d);
     	FederatedResource fedResource= new FederatedResource("a@a",crSub);
     	
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
-    	
-    	cap.setName("on-off");
-    	d.setCapabilities(Arrays.asList(cap));	
-
-    	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //location missmatch
     	
     	Location l = new SymbolicLocation();
     	l.setName("Split");
     	d.setLocatedAt(l);
     	
-    	assertTrue(Consumers.isSubscribed(s, fedResource));
+    	assertFalse(Consumers.isSubscribed(s, fedResource)); //capability name missmatch
+    	
+    	cap.setName("on-off");
+    	d.setCapabilities(Arrays.asList(cap));
+  	
+    	assertTrue(Consumers.isSubscribed(s, fedResource)); // subscription match
+    }
+    
+    @Test
+    public void addedOrupdatedResources() throws InterruptedException {
+    	Subscription s = new Subscription();
+    	s.setPlatformId("todel");
+    	subRepo.save(s);
+    	
+    	f.setMembers(Arrays.asList(fm,fm1));
+    	federationRepository.save(f);
+    	
+    	Set<String> se = new HashSet<>();
+    	se.add("todel");
+    	fr.setFederations(se);
+    	
+    	ResourcesAddedOrUpdatedMessage raoum = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, raoum);
+    	TimeUnit.MILLISECONDS.sleep(500);
+    	
+    	assertTrue(fedResRepo.findAll().size()>0);
+    	assertNotNull(fedResRepo.findOne("a@a"));
+    	
+    	Map<String, Set<String>> toDel = new HashMap<>();
+    	toDel.put("a@a", se);
+    	ResourcesDeletedMessage rdm = new ResourcesDeletedMessage(toDel);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, rdm);
+    	TimeUnit.MILLISECONDS.sleep(500);
+    	
+    	assertFalse(fedResRepo.findAll().size()>0);
+    	assertNull(fedResRepo.findOne("a@a"));
     }
     
 }
