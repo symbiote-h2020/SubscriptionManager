@@ -228,13 +228,10 @@ public class Consumers {
                 // if the creation of securityRequest is successful broadcast FederatedResource to interested platforms
                 for (Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()) {
 
-                    List<FederatedResource> resourcesForSending = new ArrayList<>(
-                            entry.getValue().values());
+                    List<FederatedResource> resourcesForSending = new ArrayList<>(entry.getValue().values());
 
-                    logger.debug("Sending  addedOrUpdatedFederatedResource message to platform " + entry.getKey()
-                            + " for " +
-                            resourcesForSending.stream()
-                                    .map(FederatedResource::getSymbioteId).collect(Collectors.toList()));
+                    logger.debug("Sending  addedOrUpdatedFederatedResource message to platform " + entry.getKey()+ " for " +
+                            resourcesForSending.stream().map(FederatedResource::getSymbioteId).collect(Collectors.toList()));
 
 					sendSecurityRequestAndVerifyResponse(securityRequest,
 							mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
@@ -242,8 +239,7 @@ public class Consumers {
 							entry.getKey());
                 }
             } else
-                logger.info(
-                        "Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
+                logger.info("Failed to broadcast addedOrUpdatedFederatedResource message due to the securityRequest creation failure!");
         } catch (Exception e) {
             logger.warn("Exception thrown during addedOrUpdateFederatedResource", e);
         }
@@ -334,8 +330,7 @@ public class Consumers {
 
                     Map<String, Set<String>> deleteMessage = entry.getValue();
 
-                    logger.debug("Sending unsharedFederatedResource message to platform " + entry.getKey()
-                            + " for " + deleteMessage);
+                    logger.debug("Sending unsharedFederatedResource message to platform " + entry.getKey() + " for " + deleteMessage);
 
 					sendSecurityRequestAndVerifyResponse(securityRequest,
 							mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)),
@@ -343,8 +338,7 @@ public class Consumers {
 							entry.getKey());
                 }
             } else
-                logger.info(
-                        "Failed to broadcast resourcesDeleted message due to the securityRequest creation failure!");
+                logger.info("Failed to broadcast resourcesDeleted message due to the securityRequest creation failure!");
         } catch (Exception e) {
             logger.warn("Exception thrown during removeFederatedResource", e);
         }
@@ -362,8 +356,7 @@ public class Consumers {
 	private void sendSecurityRequestAndVerifyResponse(SecurityRequest securityRequest, String jsonMessage, String completeUrl, String platformId) {
 		ResponseEntity<?> serviceResponse = null;
         try {
-        	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
-                    jsonMessage, completeUrl);
+        	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest, jsonMessage, completeUrl);
         } catch (Exception e) {
             logger.warn("Exception thrown during sending security request!", e);
         }
@@ -376,11 +369,9 @@ public class Consumers {
                     serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
                     "subscriptionManager", platformId);
             if (verifiedResponse)
-                logger.debug("Sending of security request message to platform " + platformId
-                        + " successfull!");
+                logger.debug("Sending of security request message to platform " + platformId + " successfull!");
             else
-                logger.warn("Failed to send security request message to platform " + platformId
-                        + " due to the response verification error!");
+                logger.warn("Failed to send security request message to platform " + platformId + " due to the response verification error!");
         } catch (Exception e) {
             logger.warn("Exception thrown during verifying service response", e);
         }
