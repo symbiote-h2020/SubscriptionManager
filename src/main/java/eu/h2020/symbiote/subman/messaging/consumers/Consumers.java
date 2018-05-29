@@ -396,7 +396,7 @@ public class Consumers {
 		try {
 			federatedResource = mapper.readValue(s, FederatedResource.class);
 		} catch (IOException e) {
-			logger.info("Problem in deserializing the federatedResource", e);
+			logger.info("Problem in deserializing the federatedResource");
 			return null;
 		}
 		return federatedResource;
