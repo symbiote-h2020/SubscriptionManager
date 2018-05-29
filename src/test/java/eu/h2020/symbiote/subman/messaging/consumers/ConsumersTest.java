@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 
 import java.util.Arrays;
@@ -24,6 +25,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -45,7 +48,9 @@ import eu.h2020.symbiote.model.cim.Service;
 import eu.h2020.symbiote.model.cim.SymbolicLocation;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
+import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
@@ -389,6 +394,62 @@ public class ConsumersTest {
     	TimeUnit.MILLISECONDS.sleep(400);
     	current = fedResRepo.findAll();
     	assertEquals(0, current.size());
+    }
+    
+    @Test
+    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
+    	Set<String> federationDummies = new HashSet<>();
+    	federationDummies.add("todel");
+    	fr.setFederations(federationDummies);
+    	fedResRepo.save(fr);
+    	f.setId("todel");
+    	
+    	//federationRepository.insert(f);
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	Map<String, Set<String>> toDelete = new HashMap<>();
+    	toDelete.put("a@a", federationDummies);
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	 
+    	doReturn(new SecurityRequest("sdad"))
+    		.when(securityManager).generateSecurityRequest();
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
+    
+    /**
+     * Throws nullPointer since SecuredRequestSender does not return service response
+     * @throws InterruptedException
+     */
+    @Test
+    public void addedOrUpdatedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	f.setMembers(Arrays.asList(fm,fm1));
+    	//federationRepository.insert(f);
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	
+    	doReturn(new SecurityRequest("sdad"))
+        .when(securityManager).generateSecurityRequest();
+        
+    	doReturn(true)
+        .when(securityManager).verifyReceivedResponse(any(String.class),any(String.class),any(String.class));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
     }
     
     @Test
