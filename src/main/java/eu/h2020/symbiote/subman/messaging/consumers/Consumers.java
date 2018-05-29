@@ -31,11 +31,13 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.cim.Actuator;
+import eu.h2020.symbiote.model.cim.Capability;
 import eu.h2020.symbiote.model.cim.Device;
-import eu.h2020.symbiote.model.cim.Location;
+import eu.h2020.symbiote.model.cim.MobileSensor;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.cim.Sensor;
 import eu.h2020.symbiote.model.cim.Service;
+import eu.h2020.symbiote.model.cim.StationarySensor;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.security.commons.SecurityConstants;
@@ -187,9 +189,7 @@ public class Consumers {
                     	//to avoid platform sending HTTP request to itself
                     	if(fm.getPlatformId().equals(this.platformId)) continue;
                     	
-                    	/**
-                    	 * CHECK IF CURRENT FEDERATION MEMEBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
-                    	 */
+                    	//check if current federation member is subscribed to current federated resource                 	 
                     	if(isSubscribed(subscriptionRepo.findOne(fm.getPlatformId()), fr)) {
                     	
 	                        // if platform is not yet in a list for receiving
@@ -219,13 +219,13 @@ public class Consumers {
             }
 
             // send HTTP-POST notifications to federated platforms
+            
             // create securityRequest
             SecurityRequest securityRequest = securityManager.generateSecurityRequest();
             if (securityRequest != null) {
                 logger.debug("Security Request created successfully!");
 
-                // if the creation of securityRequest is successful broadcast
-                // FederatedResource to interested platforms
+                // if the creation of securityRequest is successful broadcast FederatedResource to interested platforms
                 for (Map.Entry<String, Map<String, FederatedResource>> entry : platformMessages.entrySet()) {
 
                     List<FederatedResource> resourcesForSending = new ArrayList<>(
@@ -236,31 +236,10 @@ public class Consumers {
                             resourcesForSending.stream()
                                     .map(FederatedResource::getSymbioteId).collect(Collectors.toList()));
 
-                    ResponseEntity<?> serviceResponse = null;
-                    try {
-                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(
-                                securityRequest, mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
-                                addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate");
-                    } catch (Exception e) {
-                        logger.warn("Exception thrown during sending addedOrUpdatedFederatedResource", e);
-                    }
-
-                    logger.debug("ServiceResponse = " + serviceResponse);
-
-                    try {
-                        // verify serviceResponse
-                        boolean verifiedResponse = securityManager.verifyReceivedResponse(
-                                serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
-                                "subscriptionManager", entry.getKey());
-                        if (verifiedResponse)
-                            logger.info("Sending of addedOrUpdatedFederatedResource message to platform " + entry.getKey()
-                                    + " successfull!");
-                        else
-                            logger.info("Failed to send addedOrUpdatedFederatedResource message to platform " + entry.getKey()
-                                    + " due to the response verification error!");
-                    } catch (Exception e) {
-                    logger.warn("Exception thrown during verifying service response", e);
-                    }
+					sendSecurityRequestAndVerifyResponse(securityRequest,
+							mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
+							addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/addOrUpdate",
+							entry.getKey());
                 }
             } else
                 logger.info(
@@ -285,11 +264,10 @@ public class Consumers {
 	    try {
             ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
             logger.info("Received ResourcesDeletedMessage from Platform Registry");
-
+            logger.debug("Federated resources to be unshared = " + rdDel.getDeletedFederatedResourcesMap().keySet());
+            
             // <platformId,<federatedResourceId, Set<federationsId>>>
             Map<String, Map<String, Set<String>>> platformMessages = new HashMap<String, Map<String, Set<String>>>();
-
-            logger.debug("Federated resources to be unshared = " + rdDel.getDeletedFederatedResourcesMap().keySet());
 
             for (Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()) {
                 FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
@@ -298,6 +276,7 @@ public class Consumers {
                     continue;
                 }
 
+                //remove federated resource from given federations
                 for (String fedId : entry.getValue()) {
                     // remove federationIds in which resource is unshared
                     toUpdate.getFederations().remove(fedId);
@@ -307,6 +286,9 @@ public class Consumers {
                 // if federatedResource is unshared from all federations remove it
                 if (toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())
                     fedResRepo.delete(entry.getKey());
+                //if not save it without removed federations where it is deleted
+                else
+                	fedResRepo.save(toUpdate);
 
                 // iterate federations for current FederatedResource
                 for (String federationId : entry.getValue()) {
@@ -321,20 +303,23 @@ public class Consumers {
                     for (FederationMember fedMember : currentFederation.getMembers()) {
                     	
                     	//to avoid platform sending HTTP request to itself
-                    	if(fedMember.getPlatformId().equals(this.platformId)) continue;
-                    	
-                    	/**
-                    	 * CHECK IF CURRENT FEDERATION MEMBER IS SUBSCRIBED TO CURRENT FEDERATED RESOURCE
-                    	 */
-                    	
-                        if (!platformMessages.containsKey(fedMember.getPlatformId()))
-                            platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
+                    	if(fedMember.getPlatformId().equals(this.platformId))
+                    		continue;
 
-                        Map<String, Set<String>> currentPlatformMessageMap = platformMessages
-                                .get(fedMember.getPlatformId());
-                        if (!currentPlatformMessageMap.containsKey(entry.getKey()))
-                            currentPlatformMessageMap.put(entry.getKey(), new HashSet<>());
-                        currentPlatformMessageMap.get(entry.getKey()).add(federationId);
+                    	//check if current federation member is subscribed to current federated resource that is being deleted from certain federations
+                    	if(isSubscribed(subscriptionRepo.findOne(fedMember.getPlatformId()), toUpdate)) {
+	
+	                        if (!platformMessages.containsKey(fedMember.getPlatformId()))
+	                            platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
+	
+	                        Map<String, Set<String>> currentPlatformMessageMap = platformMessages
+	                                .get(fedMember.getPlatformId());
+	                        
+	                        if (!currentPlatformMessageMap.containsKey(entry.getKey()))
+	                            currentPlatformMessageMap.put(entry.getKey(), new HashSet<>());
+	                        
+	                        currentPlatformMessageMap.get(entry.getKey()).add(federationId);
+                    	}
                     }
                 }
             }
@@ -352,36 +337,52 @@ public class Consumers {
                     logger.debug("Sending unsharedFederatedResource message to platform " + entry.getKey()
                             + " for " + deleteMessage);
 
-                    ResponseEntity<?> serviceResponse = null;
-                    try {
-                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
-                                mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)), addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/delete");
-                    } catch (Exception e) {
-                        logger.warn("Exception thrown during sending unsharedFederatedResource", e);
-                    }
-
-                    logger.debug("ServiceResponse = " + serviceResponse);
-
-                    //verify serviceResponse
-                    try {
-                        boolean verifiedResponse = securityManager.verifyReceivedResponse(
-                                serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
-                                "subscriptionManager", entry.getKey());
-                        if (verifiedResponse)
-                            logger.debug("Sending of unsharedFederatedResource message to platform " + entry.getKey()
-                                    + " successfull!");
-                        else
-                            logger.warn("Failed to send unsharedFederatedResource message to platform " + entry.getKey()
-                                    + " due to the response verification error!");
-                    } catch (Exception e) {
-                        logger.warn("Exception thrown during verifying service response", e);
-                    }
+					sendSecurityRequestAndVerifyResponse(securityRequest,
+							mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)),
+							addressBook.get(entry.getKey()).replaceAll("/+$", "") + "/subscriptionManager" + "/delete",
+							entry.getKey());
                 }
             } else
                 logger.info(
                         "Failed to broadcast resourcesDeleted message due to the securityRequest creation failure!");
         } catch (Exception e) {
             logger.warn("Exception thrown during removeFederatedResource", e);
+        }
+	}
+	
+	/**
+	 * Method sends security request with jsonMessage content to completeUrl,
+	 * and verifies that received response matches given platformId.
+	 * 
+	 * @param securityRequest
+	 * @param jsonMessage
+	 * @param completeUrl
+	 * @param platformId
+	 */
+	private void sendSecurityRequestAndVerifyResponse(SecurityRequest securityRequest, String jsonMessage, String completeUrl, String platformId) {
+		ResponseEntity<?> serviceResponse = null;
+        try {
+        	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
+                    jsonMessage, completeUrl);
+        } catch (Exception e) {
+            logger.warn("Exception thrown during sending security request!", e);
+        }
+
+        logger.debug("ServiceResponse = " + serviceResponse);
+
+        //verify serviceResponse
+        try {
+            boolean verifiedResponse = securityManager.verifyReceivedResponse(
+                    serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
+                    "subscriptionManager", platformId);
+            if (verifiedResponse)
+                logger.debug("Sending of security request message to platform " + platformId
+                        + " successfull!");
+            else
+                logger.warn("Failed to send security request message to platform " + platformId
+                        + " due to the response verification error!");
+        } catch (Exception e) {
+            logger.warn("Exception thrown during verifying service response", e);
         }
 	}
 
@@ -522,39 +523,24 @@ public class Consumers {
 			subscription.setPlatformId(newFedMembersId);
 			subscriptionRepo.save(subscription);
 			
+			// Wrap in try/catch to avoid requeuing
+	        try {
 			//send HTTP-POST of own subscription
 			SecurityRequest securityRequest = securityManager.generateSecurityRequest();
             if (securityRequest != null) {
                 logger.debug("Security Request created successfully!");
 
-                // if the creation of securityRequest is successful send it to the federated platform           
-                    ResponseEntity<?> serviceResponse = null;
-                    try {
-                    	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest,
-                                mapper.writeValueAsString(subscriptionRepo.findOne(platformId)), addressBook.get(newFedMembersId).replaceAll("/+$", "") + "/subscriptionManager" + "/subscription");
-                    } catch (Exception e) {
-                        logger.warn("Exception thrown during sending own subscription to platform: " + newFedMembersId , e);
-                    }
-
-                    logger.debug("ServiceResponse = " + serviceResponse);
-
-                    //verify serviceResponse
-                    try {
-                        boolean verifiedResponse = securityManager.verifyReceivedResponse(
-                                serviceResponse.getHeaders().get(SecurityConstants.SECURITY_RESPONSE_HEADER).get(0),
-                                "subscriptionManager", newFedMembersId);
-                        if (verifiedResponse)
-                            logger.debug("Sending of own subscription message to platform " + newFedMembersId
-                                    + " successfull!");
-                        else
-                            logger.warn("Failed to send own subscription message to platform " + newFedMembersId
-                                    + " due to the response verification error!");
-                    } catch (Exception e) {
-                        logger.warn("Exception thrown during verifying service response", e);
-                    }
+                // if the creation of securityRequest is successful send it to the federated platform  
+				sendSecurityRequestAndVerifyResponse(securityRequest,
+						mapper.writeValueAsString(subscriptionRepo.findOne(platformId)),
+						addressBook.get(newFedMembersId).replaceAll("/+$", "") + "/subscriptionManager" + "/subscription",
+						newFedMembersId);       
             } else
                 logger.info(
                         "Failed to send own subscription message due to securityRequest creation failure!");
+	        } catch (Exception e) {
+	            logger.warn("Exception thrown during processing federationMember addition.", e);
+	        }
         }
 	}
 	
@@ -568,6 +554,10 @@ public class Consumers {
 	 */
 	public static boolean isSubscribed (Subscription platformSubscription, FederatedResource fedRes) {
 		
+		//if resource is not defined, federated resource is not valid for subscription matching
+		if(fedRes.getCloudResource().getResource() == null)
+			return false;
+		
 		//resourceType matching condition
 		if(!resourceTypeMatching(platformSubscription.getResourceType(),fedRes.getCloudResource().getResource()))
 			return false;
@@ -578,6 +568,20 @@ public class Consumers {
 			if(!locationMatching(platformSubscription.getLocations(),fedRes.getCloudResource().getResource()))
 				return false;
 		}
+		
+		//if subscription has observedProperty condition check it
+		if(platformSubscription.getObservedProperties() != null && platformSubscription.getObservedProperties().size() > 0) {
+			//observedProperties matching condition
+			if(!observedPropertyMatching(platformSubscription.getObservedProperties(), fedRes.getCloudResource().getResource()))
+				return false;
+		}
+		
+		//if subscription has capability condition check it
+		if(platformSubscription.getCapabilities() != null && platformSubscription.getCapabilities().size() > 0) {
+			//capabilities matching condition
+			if(!capabilityMatching(platformSubscription.getCapabilities(), fedRes.getCloudResource().getResource()))
+				return false;
+		}		
 		
 		return true;
 	}
@@ -591,27 +595,19 @@ public class Consumers {
 	 */
 	public static boolean resourceTypeMatching(Map<String, Boolean> resourceType, Resource resource) {
 		
-		if(resourceType.get("service") && resource instanceof Service) {
-			logger.info("service");
+		if(resourceType.get("service") && resource instanceof Service)
 			return true;
-		}
 
-		else if (resourceType.get("device") && resource instanceof Device) {
-			logger.info("device");
+		if (resourceType.get("device") && resource instanceof Device)
 			return true;
-		}
 		
-		else if (resourceType.get("sensor") && resource instanceof Sensor) {
-			logger.info("sensor");
+		if (resourceType.get("sensor") && resource instanceof Sensor)
 			return true;
-		}
 		
-		else if (resourceType.get("actuator") && resource instanceof Actuator) {
-			logger.info("actuator");
+		if (resourceType.get("actuator") && resource instanceof Actuator)
 			return true;
-		}
 		
-		else return false;
+		return false;
 	}
 	
 	/**
@@ -623,10 +619,50 @@ public class Consumers {
 	 */
 	public static boolean locationMatching(List<String> locations, Resource resource) {
 		if(resource instanceof Device) {
-			if(((Device) resource).getLocatedAt() != null && locations.contains(((Device) resource).getLocatedAt().getName()))return true;
-			else return false;
+			if(((Device) resource).getLocatedAt() != null && locations.contains(((Device) resource).getLocatedAt().getName()))
+				return true;
 		}
-		else return false;
+		return false;
+	}
+	
+	/**
+	 * Method does observedProperty matching of given resource and subscription list of observedProperties.
+	 * 
+	 * @param observedProperties
+	 * @param resource
+	 * @return
+	 */
+	public static boolean observedPropertyMatching(List<String> observedProperties, Resource resource) {
+		if(resource instanceof Sensor || resource instanceof StationarySensor || resource instanceof MobileSensor) { // check that resource is sensor
+			if(((Sensor)resource).getObservesProperty() != null && ((Sensor)resource).getObservesProperty().size() > 0)	{//check that sensor has any observed properties
+				for(String property : observedProperties) {
+					//if any of subscribed observedProperties is available, resource fits the subscription
+					if(((Sensor)resource).getObservesProperty().contains(property))
+						return true;
+				}
+			}
+		}	
+		return false;
+	}
+	
+	/**
+	 * Method does capability matching of given resource and subscription list of capabilities.
+	 * 
+	 * @param capabilities
+	 * @param resource
+	 * @return
+	 */
+	public static boolean capabilityMatching(List<String> capabilities, Resource resource) {
+		if(resource instanceof Actuator) { // check that resource is actuator
+			if(((Actuator)resource).getCapabilities() != null && ((Actuator)resource).getCapabilities().size() > 0)	{ //check that actuator has any capabilities
+				for(String capability : capabilities) {
+					//if any of subscribed capabilities is available, resource fits the subscription
+					if(((Actuator)resource).getCapabilities().stream().map(Capability :: getName).collect(Collectors.toList()).contains(capability))
+						return true;
+				}
+			}
+		}	
+		return false;
 	}
 	
 }
