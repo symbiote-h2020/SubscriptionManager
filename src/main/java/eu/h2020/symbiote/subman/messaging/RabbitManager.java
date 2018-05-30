@@ -37,7 +37,7 @@ public class RabbitManager {
 	@Value("${rabbit.password}")
 	private String rabbitPassword;
 
-	private Connection connection;
+	public Connection connection;
 	private RabbitTemplate rabbitTemplate;
 
 	public RabbitManager(RabbitTemplate rabbitTemplate) throws Exception {
