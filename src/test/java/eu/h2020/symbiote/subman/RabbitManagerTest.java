@@ -1,11 +1,10 @@
 package eu.h2020.symbiote.subman;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -15,9 +14,8 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.support.CorrelationData;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import com.rabbitmq.client.Connection;
 
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 
@@ -27,6 +25,7 @@ public class RabbitManagerTest {
 	@Mock
 	RabbitTemplate rabbitTemplate;
 	
+	@Autowired
 	@InjectMocks
 	RabbitManager rabbitManager;
 	
@@ -38,12 +37,6 @@ public class RabbitManagerTest {
 	}
 	
 	@Test
-	public void testConnection() throws IOException, TimeoutException{
-		Connection c = rabbitManager.getConnection();
-		assertNotNull(c);
-	}
-	
-	@Test
 	public void testSendRpcMessage(){
 		when(rabbitTemplate.convertSendAndReceive(any(String.class), any(String.class), any(Object.class),
 				any(CorrelationData.class))).thenReturn(null);
@@ -52,5 +45,14 @@ public class RabbitManagerTest {
 		when(rabbitTemplate.convertSendAndReceive(any(String.class), any(String.class), any(Object.class),
 				any(CorrelationData.class))).thenReturn("message received");
 		assertNotNull(rabbitManager.sendRpcMessage("", "", new Object()));	
+	}
+	
+	@Test
+	public void rabbitInit() {
+		rabbitManager.init();
+		assertNotNull(rabbitManager.connection);
+		
+		rabbitManager.cleanup();
+		assertFalse(rabbitManager.connection.isOpen());
 	}
 }
