@@ -1,4 +1,4 @@
-package eu.h2020.symbiote.subman.messaging.consumers;
+package eu.h2020.symbiote.subman.messaging;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -25,8 +25,6 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -48,11 +46,8 @@ import eu.h2020.symbiote.model.cim.Service;
 import eu.h2020.symbiote.model.cim.SymbolicLocation;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
-import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
-import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
-import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;

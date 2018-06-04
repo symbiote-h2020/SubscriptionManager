@@ -1,4 +1,4 @@
-package eu.h2020.symbiote.subman.messaging.consumers;
+package eu.h2020.symbiote.subman.messaging;
 
 import java.io.IOException;
 import java.util.ArrayList;
