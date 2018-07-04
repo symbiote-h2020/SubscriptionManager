@@ -77,6 +77,7 @@ dependencies {
     //compile('com.github.symbiote-h2020:SymbIoTeLibraries:federations_merged-SNAPSHOT') { changing = true }
     //compile('com.github.symbiote-h2020:SymbIoTeLibraries:5.+') { changing = true }
     compile('com.github.symbiote-h2020:SymbIoTeLibraries:develop-SNAPSHOT')
+    //compile('com.github.symbiote-h2020:SymbIoTeLibraries:L2_rework-SNAPSHOT')
 
     // Spring
     compile('org.springframework.cloud:spring-cloud-starter-config')
