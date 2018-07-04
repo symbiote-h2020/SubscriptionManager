@@ -62,14 +62,11 @@ public class SecuredRequestSenderTest {
 		fib.setSharingInformation(map);
 		dummy.setFederationInfo(fib);
 		
-		fr = new FederatedResource("a@a",dummy);
-		fr.setRestUrl("aa");
+		fr = new FederatedResource("a@a",dummy, (double) 4);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
 		
-		Map<String, Set<String>> rdMap = new HashMap<>();
-		Set<String> fede = new HashSet<>(Arrays.asList("fed1", "fed2"));
-		rdMap.put("fr1", fede);
-		deleted = new ResourcesDeletedMessage(rdMap);
+		Set<String> fede = new HashSet<>(Arrays.asList("fadas@p1@fed1", "fadas@p1@fed2"));
+		deleted = new ResourcesDeletedMessage(fede);
 	}
 	
 	@Test

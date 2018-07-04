@@ -98,7 +98,7 @@ public class RestInterface {
 		String senderPlatformId = receivedMessage.getNewFederatedResources().get(0).getPlatformId();
 		//for every FedRes check if sender platformId is in federations where fedRes is being shared
 		if(!checkPlatformIdInFederationsCondition1(senderPlatformId, receivedMessage))
-			return new ResponseEntity<>("Sender not allowed to share all received fedrated resources!",HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>("Sender not allowed to share all received federated resources, because sender platform is not member of all federations where resource is being shared!",HttpStatus.BAD_REQUEST);
 
 		ResponseEntity<?> securityResponse = AuthorizationServiceHelper
 				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
@@ -113,7 +113,6 @@ public class RestInterface {
 		logger.info("ResourcesAddedOrUpdated request succesfully processed!");
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
-
 	}
 
 	/**
@@ -144,11 +143,11 @@ public class RestInterface {
 		    return new ResponseEntity<>("The platform that shared the resource is not in the federation",
                     HttpStatus.BAD_REQUEST);
 
-        //fetch any fedRes on its id and get platfromId
-		String senderPlatformId = fedResRepo.findOne(receivedMessage.getDeletedFederatedResourcesMap().keySet().iterator().next()).getPlatformId();
+        //get sender platformId
+		String [] symbioteIdParts = receivedMessage.getDeletedFederatedResources().iterator().next().split("@"); //nonce@platformId@federationId
 
         ResponseEntity<?> securityResponse = AuthorizationServiceHelper
-				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, senderPlatformId);
+				.checkSecurityRequestAndCreateServiceResponse(securityManager, httpHeaders, symbioteIdParts[1]);
 		if (securityResponse.getStatusCode() != HttpStatus.OK) {
 			logger.info("Request failed authorization check!");
 			return securityResponse;
@@ -252,7 +251,7 @@ public class RestInterface {
 		boolean requestOk = false;
 		for(FederatedResource fedRes : receivedMessage.getNewFederatedResources()){
 			
-			for(String federationId : fedRes.getCloudResource().getFederationInfo().getSharingInformation().keySet()){
+			for(String federationId : fedRes.getFederatedResourceInfoMap().keySet()){
 				Federation current = fedRepo.findOne(federationId);
 				if(current == null) return false;
 				requestOk = false;
@@ -271,7 +270,7 @@ public class RestInterface {
 	/**
 	 * Method checks that  platform which shared federated resource, is in all
 	 * federations where it is being deleted. It returns true if ok, and false if 
-	 * there are non-existing fedearted resources or federations, or if federated resource 
+	 * there are non-existing federated resources or federations, or if federated resource 
 	 * is shared by a platform that is not in federations where it is being deleted.
 	 * 
 	 * @param rdm
@@ -279,30 +278,28 @@ public class RestInterface {
 	 */
 	public boolean checkPlatformIdInFederationsCondition2(ResourcesDeletedMessage rdm){
 
-	    boolean requestOk = false;
+		boolean requestOk = false;
 		//for every received federatedResourceId
-		for (String fedResId : rdm.getDeletedFederatedResourcesMap().keySet()) {
-
-			FederatedResource fedRes = fedResRepo.findOne(fedResId);
+		for (String deletedSymbioteId : rdm.getDeletedFederatedResources()) {
+			String [] symbioteIdParts = deletedSymbioteId.split("@"); // nonce@platformId@federationId
+			String aggregatedId = symbioteIdParts[0] + "@" + symbioteIdParts[1];
+			
+			//check that federated resource exists in mongoDB
+			FederatedResource fedRes = fedResRepo.findOne(aggregatedId);
 			if(fedRes == null) return false;
-
-			//fetch platformId of platform that shared FederatedResource
-			String platformIdToCheck = fedRes.getPlatformId();
-			for(String fedId : rdm.getDeletedFederatedResourcesMap().get(fedResId)){
-				Federation fed = fedRepo.findOne(fedId);
-				if(fed == null) return false;
-
-                requestOk = false;
-				//check that every received federation where fedRes is unshared contains platform that shared the resource
-				for(FederationMember fm : fed.getMembers()){
-					if(fm.getPlatformId().equals(platformIdToCheck)){
-						requestOk = true;
-						break;
-					}
+			
+			//check that federation exists
+			Federation fed = fedRepo.findOne(symbioteIdParts[2]);
+			if(fed == null) return false;
+			
+			requestOk = false;
+			for(FederationMember fm : fed.getMembers()){
+				if(fm.getPlatformId().equals(symbioteIdParts[1])){
+					requestOk = true;
+					break;
 				}
-
-				if(!requestOk) return false;
-			}			
+			}
+			if(!requestOk) return false;
 		}
 		return true;
 	}

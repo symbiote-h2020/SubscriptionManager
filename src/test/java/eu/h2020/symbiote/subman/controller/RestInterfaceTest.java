@@ -79,14 +79,11 @@ public class RestInterfaceTest {
 		fib.setSharingInformation(map);
 		dummy.setFederationInfo(fib);
 		
-		fr = new FederatedResource("a@a",dummy);
-		fr.setRestUrl("aa");
+		fr = new FederatedResource("anoncea@a",dummy, (double) 4);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
 		
-		Map<String, Set<String>> rdMap = new HashMap<>();
-		Set<String> fede = new HashSet<>(Arrays.asList("fed1", "fed2"));
-		rdMap.put("fr1", fede);
-		deleted = new ResourcesDeletedMessage(rdMap);
+		Set<String> fede = new HashSet<>(Arrays.asList("fr1@a@fed1", "fr1@a@fed2"));
+		deleted = new ResourcesDeletedMessage(fede);
 		
 		FederationMember fm = new FederationMember();
 		fm.setPlatformId("p1");
@@ -108,7 +105,7 @@ public class RestInterfaceTest {
 	@Test
 	public void resourcesAddedOrUpdatedBadRequestConditionFailure() throws JsonProcessingException{
 		when(fedRepo.findOne("fed1")).thenReturn(null);
-		assertEquals(new ResponseEntity<>("Sender not allowed to share all received fedrated resources!", HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
+		assertEquals(new ResponseEntity<>("Sender not allowed to share all received federated resources, because sender platform is not member of all federations where resource is being shared!", HttpStatus.BAD_REQUEST), restInterface.resourcesAddedOrUpdated(new HttpHeaders(), om.writeValueAsString(toSend)));
 	}
 	
 	@Test
@@ -143,10 +140,6 @@ public class RestInterfaceTest {
 		when(fedRepo.findOne(any(String.class))).thenReturn(f);
 		assertEquals(false, restInterface.checkPlatformIdInFederationsCondition2(deleted));
 		
-		when(fedResRepo.findOne(any(String.class))).thenReturn(fr);
-		when(fedRepo.findOne(any(String.class))).thenReturn(f);
-		assertEquals(false, restInterface.checkPlatformIdInFederationsCondition2(deleted));
-		
 		FederationMember fm = new FederationMember();
 		fm.setPlatformId("a");
 		f.setMembers(Arrays.asList(fm));
@@ -158,7 +151,7 @@ public class RestInterfaceTest {
 	@Test
 	public void resourcesAddedOrUpdatedUnauthorized() throws JsonProcessingException{
 		when(fedRepo.findOne("fed1")).thenReturn(f);
-		fr = new FederatedResource("a@p1",dummy);
+		fr = new FederatedResource("a@p1",dummy, (double) 4);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
 		
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
@@ -169,7 +162,7 @@ public class RestInterfaceTest {
 	@Test
 	public void resourcesAddedOrUpdatedAuthorizedOk() throws JsonProcessingException{
 		when(fedRepo.findOne("fed1")).thenReturn(f);
-		fr = new FederatedResource("a@p1",dummy);
+		fr = new FederatedResource("p1sas@p1", dummy, (double) 4);
 		toSend = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
 
 		when(securityManager.generateServiceResponse()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
