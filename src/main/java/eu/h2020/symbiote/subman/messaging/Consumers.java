@@ -170,7 +170,7 @@ public class Consumers {
             // add received FederatedResource to local MongoDB
             for (FederatedResource fr : rsMsg.getNewFederatedResources()) {	
                 fedResRepo.save(fr);
-                logger.info("Federated resource with id " + fr.getSymbioteId() + " added to repository and is exposed to " +
+                logger.info("Federated resource with aggregatedId " + fr.getAggregationId() + " added to repository and is exposed to " +
                     fr.getFederations());
 
                 // iterate interested federations
@@ -179,7 +179,7 @@ public class Consumers {
                     Federation interestedFederation = fedRepo.findOne(interestedFederationId);
 
                     if (interestedFederation == null) {
-                        logger.info("The federation with id " + interestedFederationId + " was not found in the federation repository");
+                        logger.info("The federation with id " + interestedFederationId + " was not found in the federation repository!");
                         continue;
                     }
 
@@ -202,15 +202,15 @@ public class Consumers {
 	
 	                        // if there is not entry in the platformMap for this
 	                        // federatedResource create it
-	                        if (!platformMap.containsKey(fr.getSymbioteId())) {
+	                        if (!platformMap.containsKey(fr.getAggregationId())) {
 	
 	                            FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
 	                            clonedFr.clearPrivateInfo();
-	                            platformMap.put(clonedFr.getSymbioteId(), clonedFr);
+	                            platformMap.put(clonedFr.getAggregationId(), clonedFr);
 	                        }
 	
 	                        // add the federation info of currently iterated federation
-	                        FederatedResource platformFederatedResource = platformMap.get(fr.getSymbioteId());
+	                        FederatedResource platformFederatedResource = platformMap.get(fr.getAggregationId());
 	                        platformFederatedResource.shareToNewFederation(interestedFederationId, fr.getCloudResource()
 	                                .getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
                     	}
@@ -230,8 +230,8 @@ public class Consumers {
 
                     List<FederatedResource> resourcesForSending = new ArrayList<>(entry.getValue().values());
 
-                    logger.debug("Sending  addedOrUpdatedFederatedResource message to platform " + entry.getKey()+ " for " +
-                            resourcesForSending.stream().map(FederatedResource::getSymbioteId).collect(Collectors.toList()));
+                    logger.debug("Sending  addedOrUpdatedFederatedResource message to platform " + entry.getKey()+ " for federated resources: " +
+                            resourcesForSending.stream().map(FederatedResource::getAggregationId).collect(Collectors.toList()));
 
 					sendSecurityRequestAndVerifyResponse(securityRequest,
 							mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(resourcesForSending)),
@@ -260,62 +260,57 @@ public class Consumers {
 	    try {
             ResourcesDeletedMessage rdDel = (ResourcesDeletedMessage) messageConverter.fromMessage(msg);
             logger.info("Received ResourcesDeletedMessage from Platform Registry");
-            logger.debug("Federated resources to be unshared = " + rdDel.getDeletedFederatedResourcesMap().keySet());
+            logger.debug("SymbioteIds of unshared federated resources: " + rdDel.getDeletedFederatedResources());
             
-            // <platformId,<federatedResourceId, Set<federationsId>>>
-            Map<String, Map<String, Set<String>>> platformMessages = new HashMap<String, Map<String, Set<String>>>();
+            // <platformId, Set<symbioteIDs>>
+            Map<String, Set<String>> platformMessages = new HashMap<String, Set<String>>();
 
-            for (Map.Entry<String, Set<String>> entry : rdDel.getDeletedFederatedResourcesMap().entrySet()) {
-                FederatedResource toUpdate = fedResRepo.findOne(entry.getKey());
+            for (String symbioteId : rdDel.getDeletedFederatedResources()) {
+            	String [] splitSymbioteID = symbioteId.split("@");
+                FederatedResource toUpdate = fedResRepo.findOne(splitSymbioteID[0]+"@"+splitSymbioteID[1]);
                 if (toUpdate == null) {
-                    logger.info("The federatedResource " + entry.getKey() + " was not found in the federatedResource repository");
+                    logger.info("The federatedResource " + splitSymbioteID[0]+"@"+splitSymbioteID[1] + " was not found in the federatedResource repository");
                     continue;
                 }
 
                 //remove federated resource from given federations
-                for (String fedId : entry.getValue()) {
-                    // remove federationIds in which resource is unshared
-                    toUpdate.getFederations().remove(fedId);
-                    toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(fedId);
-                }
+                toUpdate.getFederatedResourceInfoMap().remove(splitSymbioteID[2]);
+                toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(splitSymbioteID[2]);
 
                 // if federatedResource is unshared from all federations remove it
-                if (toUpdate.getCloudResource().getFederationInfo().getSharingInformation().isEmpty())
-                    fedResRepo.delete(entry.getKey());
-                //if not save it without removed federations where it is deleted
+                if (toUpdate.getFederatedResourceInfoMap().size() == 0)
+                    fedResRepo.delete(toUpdate.getAggregationId());
+                
+                // if not save it without removed federations where it is deleted
                 else
                 	fedResRepo.save(toUpdate);
 
                 // iterate federations for current FederatedResource
-                for (String federationId : entry.getValue()) {
-                    Federation currentFederation = fedRepo.findOne(federationId);
+                
+                Federation currentFederation = fedRepo.findOne(splitSymbioteID[2]);
 
-                    if (currentFederation == null) {
-                        logger.info("The federation with id " + federationId + " was not found in the federation repository");
-                        continue;
-                    }
+                if (currentFederation == null) {
+                	logger.info("The federation with id " + splitSymbioteID[2] + " was not found in the federation repository");
+                    continue;
+                }
 
-                    // iterate members
-                    for (FederationMember fedMember : currentFederation.getMembers()) {
+                // iterate members
+                for (FederationMember fedMember : currentFederation.getMembers()) {
                     	
-                    	//to avoid platform sending HTTP request to itself
-                    	if(fedMember.getPlatformId().equals(this.platformId))
-                    		continue;
+                	//to avoid platform sending HTTP request to itself
+                	if(fedMember.getPlatformId().equals(this.platformId))
+                    	continue;
 
-                    	//check if current federation member is subscribed to current federated resource that is being deleted from certain federations
-                    	if(isSubscribed(subscriptionRepo.findOne(fedMember.getPlatformId()), toUpdate)) {
+                    //check if current federation member is subscribed to current federated resource that is being deleted from certain federations
+                    if(isSubscribed(subscriptionRepo.findOne(fedMember.getPlatformId()), toUpdate)) {
 	
-	                        if (!platformMessages.containsKey(fedMember.getPlatformId()))
-	                            platformMessages.put(fedMember.getPlatformId(), new HashMap<>());
+                    	if (!platformMessages.containsKey(fedMember.getPlatformId()))
+                    		platformMessages.put(fedMember.getPlatformId(), new HashSet<>());
 	
-	                        Map<String, Set<String>> currentPlatformMessageMap = platformMessages
+                    	Set<String> currentPlatformMessageSet = platformMessages
 	                                .get(fedMember.getPlatformId());
 	                        
-	                        if (!currentPlatformMessageMap.containsKey(entry.getKey()))
-	                            currentPlatformMessageMap.put(entry.getKey(), new HashSet<>());
-	                        
-	                        currentPlatformMessageMap.get(entry.getKey()).add(federationId);
-                    	}
+                    	currentPlatformMessageSet.add(symbioteId);
                     }
                 }
             }
@@ -326,11 +321,11 @@ public class Consumers {
                 logger.debug("Security Request created successfully!");
 
                 // if the creation of securityRequest is successful broadcast changes to interested platforms
-                for (Map.Entry<String, Map<String, Set<String>>> entry : platformMessages.entrySet()) {
+                for (Map.Entry<String, Set<String>> entry : platformMessages.entrySet()) {
 
-                    Map<String, Set<String>> deleteMessage = entry.getValue();
+                    Set<String> deleteMessage = entry.getValue();
 
-                    logger.debug("Sending unsharedFederatedResource message to platform " + entry.getKey() + " for " + deleteMessage);
+                    logger.debug("Sending unsharedFederatedResource message to platform " + entry.getKey() + " for symbioteIds: " + deleteMessage);
 
 					sendSecurityRequestAndVerifyResponse(securityRequest,
 							mapper.writeValueAsString(new ResourcesDeletedMessage(deleteMessage)),

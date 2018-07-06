@@ -31,6 +31,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 
 import eu.h2020.symbiote.cloud.model.internal.CloudResource;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
+import eu.h2020.symbiote.cloud.model.internal.FederatedResourceInfo;
 import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
 import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
 import eu.h2020.symbiote.cloud.model.internal.ResourcesAddedOrUpdatedMessage;
@@ -125,8 +126,8 @@ public class ConsumersTest {
 		fib.setSharingInformation(rsiMap);
 		dummy.setFederationInfo(fib);
 		
-		fr = new FederatedResource("a@a",dummy);
-		fr.setRestUrl("aa");
+		fr = new FederatedResource("a@a",dummy, (double) 4);
+		//fr.setRestUrl("aa");
 		
 		fm = new FederationMember();
 		fm.setPlatformId("todel");
@@ -296,16 +297,17 @@ public class ConsumersTest {
     
     @Test
     public void deletedFederatedResourceLocalMongoDeletitionTest() throws InterruptedException{
-    	Set<String> federationDummies = new HashSet<>();
-    	federationDummies.add("todel");
-    	fr.setFederations(federationDummies);
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
     	fedResRepo.save(fr);
     	List<FederatedResource> current = fedResRepo.findAll();
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
     	
-    	Map<String, Set<String>> toDelete = new HashMap<>();
-    	toDelete.put("a@a", federationDummies);
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
     	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
@@ -316,9 +318,10 @@ public class ConsumersTest {
     
     @Test
     public void deletedFederatedResourceInterestedFederationTest() throws InterruptedException{
-    	Set<String> federationDummies = new HashSet<>();
-    	federationDummies.add("todel");
-    	fr.setFederations(federationDummies);
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
     	fedResRepo.save(fr);
     	f.setId("todel");
     	federationRepository.insert(f);
@@ -326,8 +329,8 @@ public class ConsumersTest {
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
     	
-    	Map<String, Set<String>> toDelete = new HashMap<>();
-    	toDelete.put("a@a", federationDummies);
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
     	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
@@ -347,7 +350,7 @@ public class ConsumersTest {
     	cr.setPluginId("pg1");
     	cr.setResource(r);
     	FederationInfoBean fib = new FederationInfoBean();
-    	fib.setSymbioteId("id@shs");
+    	fib.setAggregationId("id@shs");
     	cr.setFederationInfo(fib);
         FederatedResource fr = new FederatedResource(cr);
         Consumers con = new Consumers();
@@ -369,9 +372,10 @@ public class ConsumersTest {
     
     @Test
     public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTest() throws InterruptedException{
-    	Set<String> federationDummies = new HashSet<>();
-    	federationDummies.add("todel");
-    	fr.setFederations(federationDummies);
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
     	fedResRepo.save(fr);
     	f.setId("todel");
     	
@@ -381,8 +385,8 @@ public class ConsumersTest {
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
     	
-    	Map<String, Set<String>> toDelete = new HashMap<>();
-    	toDelete.put("a@a", federationDummies);
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
     	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
@@ -393,9 +397,10 @@ public class ConsumersTest {
     
     @Test
     public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
-    	Set<String> federationDummies = new HashSet<>();
-    	federationDummies.add("todel");
-    	fr.setFederations(federationDummies);
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
     	fedResRepo.save(fr);
     	f.setId("todel");
     	
@@ -405,8 +410,8 @@ public class ConsumersTest {
     	assertEquals(1, current.get(0).getFederations().size());
     	assertEquals(1, current.size());
     	
-    	Map<String, Set<String>> toDelete = new HashMap<>();
-    	toDelete.put("a@a", federationDummies);
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
     	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
     	
     	 
@@ -471,7 +476,7 @@ public class ConsumersTest {
     	r.setInterworkingServiceURL("dafsfa");
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(r);
-    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub, (double) 4);
     	
     	//check service
     	assertTrue(Consumers.isSubscribed(s, fedResource));
@@ -511,7 +516,7 @@ public class ConsumersTest {
     	 	
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(d);
-    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub, (double) 4);
     	
     	assertFalse(Consumers.isSubscribed(s, fedResource)); // no location
     	
@@ -544,7 +549,7 @@ public class ConsumersTest {
     	d.setObservesProperty(Arrays.asList("noise"));	
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(d);
-    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub, (double) 4);
     	
     	assertFalse(Consumers.isSubscribed(s, fedResource)); //check op name missmatch
     	
@@ -585,7 +590,7 @@ public class ConsumersTest {
     	
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(d);
-    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub, (double) 4);
     	
     	assertFalse(Consumers.isSubscribed(s, fedResource)); // check capabilities null
     	
@@ -623,7 +628,7 @@ public class ConsumersTest {
     	d.setCapabilities(Arrays.asList(cap));	
     	CloudResource crSub = new CloudResource();
     	crSub.setResource(d);
-    	FederatedResource fedResource= new FederatedResource("a@a",crSub);
+    	FederatedResource fedResource= new FederatedResource("a@a",crSub, (double) 4);
     	
     	assertFalse(Consumers.isSubscribed(s, fedResource)); //location missmatch
     	
@@ -647,9 +652,10 @@ public class ConsumersTest {
     	//rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
     	TimeUnit.MILLISECONDS.sleep(500);
     	
-    	Set<String> se = new HashSet<>();
-    	se.add("todel");
-    	fr.setFederations(se);
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
     	
     	ResourcesAddedOrUpdatedMessage raoum = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, raoum);
@@ -658,8 +664,8 @@ public class ConsumersTest {
     	assertTrue(fedResRepo.findAll().size()>0);
     	assertNotNull(fedResRepo.findOne("a@a"));
     	
-    	Map<String, Set<String>> toDel = new HashMap<>();
-    	toDel.put("a@a", se);
+    	Set<String> toDel = new HashSet<>();
+    	toDel.add("a@a@todel");
     	ResourcesDeletedMessage rdm = new ResourcesDeletedMessage(toDel);
     	
     	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, rdm);
