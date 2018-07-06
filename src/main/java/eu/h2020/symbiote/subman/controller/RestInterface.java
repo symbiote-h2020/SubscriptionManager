@@ -107,6 +107,9 @@ public class RestInterface {
 			return securityResponse;
 		}
 
+		//store received federatedResources to mongoDB
+		for (FederatedResource fr : receivedMessage.getNewFederatedResources()) fedResRepo.save(fr);
+		
 		//forward message to PR via RMQ
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRaddedOrUpdatedFedResRK, receivedMessage);
 
@@ -153,6 +156,19 @@ public class RestInterface {
 			return securityResponse;
 		}
 
+		//delete federatedResources from given federations, or delete from mongoDB if removed from all federations
+		for (String symbioteId : receivedMessage.getDeletedFederatedResources()) {
+			String [] splitSymbioteId = symbioteId.split("@");
+			FederatedResource current = fedResRepo.findOne(splitSymbioteId[0]+"@"+splitSymbioteId[1]);
+			if(current != null) {
+				current.getFederatedResourceInfoMap().remove(splitSymbioteId[2]);
+				current.getCloudResource().getFederationInfo().getSharingInformation().remove(splitSymbioteId[2]);
+				if(current.getFederatedResourceInfoMap().size() > 0) fedResRepo.save(current); // if fedRes is shared in another federations save it without deleted one
+				else fedResRepo.delete(splitSymbioteId[0]+"@"+splitSymbioteId[1]);
+			}
+			else continue;
+		}
+		
         //forward message to PR via RMQ (check if single or list)
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, receivedMessage);
 
