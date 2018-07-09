@@ -442,6 +442,7 @@ public class Consumers {
 				if(oldFedMembersId.equals(platformId))continue;
 				else processFedMemberRemoval(oldFedMembersId);
 			}
+			unshareFedResFromDeletedFederation(federation.getId());
 		}
 		
 		//if this platform was, and still is in updated federation...
@@ -459,6 +460,7 @@ public class Consumers {
 				//if federation member is removed in updated federation
 				else if(!newMembers.contains(oldFedMembersId)){
 					processFedMemberRemoval(oldFedMembersId);
+					unshareFedResOnFedMemberRemoval(oldFedMembersId, federation.getId());
 				}
 			}	
 		}
@@ -479,6 +481,44 @@ public class Consumers {
 			for(String deletedMemberId : deletedMembers){
 				if(deletedMemberId.equals(platformId))continue;
 				else processFedMemberRemoval(deletedMemberId);
+			}
+		}
+		unshareFedResFromDeletedFederation(federationId);
+	}
+	
+	/**
+	 * Method iterates all federated resources and unshare each one from a given fedId
+	 * It is then deleted if unshared from all federations, or overwritten in mongoDB without
+	 * removed federation
+	 * @param federationId
+	 */
+	protected void unshareFedResFromDeletedFederation(String federationId) {
+		//iterate all federatedResources and unshare each one that has been in deleted federation from it
+		List<FederatedResource> allFedRes = fedResRepo.findAll(); // fetch all current fedRes
+		for (FederatedResource fr : allFedRes) {
+			if(fr.getFederatedResourceInfoMap().containsKey(federationId))
+				fr.unshareFromFederation(federationId);
+			if(fr.getFederatedResourceInfoMap().size()>0)fedResRepo.save(fr); //overwrite if it is shared in another federations
+			else fedResRepo.delete(fr.getAggregationId());	//delete if unshared from all federations
+		}
+	}
+	
+	/**
+	 * Method iterates all federated resources and finds those shared by given platformID.
+	 * They are then unshared from a given fedId and deleted from mongoDB
+	 * if unshared from all federations, or overwritten in mongoDB without removed federation.
+	 * @param federationId
+	 */
+	protected void unshareFedResOnFedMemberRemoval(String removedPlatformId, String federationId) {
+		//iterate all federatedResources and unshare each one that has been in deleted federation from it
+		List<FederatedResource> allFedRes = fedResRepo.findAll(); // fetch all current fedRes
+		for (FederatedResource fr : allFedRes) {
+			String [] parts = fr.getAggregationId().split("@");
+			if(parts[1].equals(removedPlatformId)) { //if current fedRes is shared by platform removed from federation
+				if(fr.getFederatedResourceInfoMap().containsKey(federationId))
+					fr.unshareFromFederation(federationId);
+				if(fr.getFederatedResourceInfoMap().size()>0)fedResRepo.save(fr); //overwrite if it is shared in another federations
+				else fedResRepo.delete(fr.getAggregationId());	//delete if unshared from all federations
 			}
 		}
 	}
@@ -507,7 +547,8 @@ public class Consumers {
 			numberOfCommonFederations.put(newFedMembersId, 1);
 			Subscription subscription = new Subscription();
 			subscription.setPlatformId(newFedMembersId);
-			subscriptionRepo.save(subscription);
+			if(subscriptionRepo.findOne(newFedMembersId) == null)
+				subscriptionRepo.save(subscription);
 			
 			// Wrap in try/catch to avoid requeuing
 	        try {
