@@ -24,6 +24,7 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.subman.messaging.Consumers;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
@@ -108,7 +109,18 @@ public class RestInterface {
 		}
 
 		//store received federatedResources to mongoDB
-		for (FederatedResource fr : receivedMessage.getNewFederatedResources()) fedResRepo.save(fr);
+		for (FederatedResource fr : receivedMessage.getNewFederatedResources()) {
+			//if resource already exist just add federations from received fedRes
+			if(fedResRepo.exists(fr.getAggregationId())) {
+				FederatedResource existing = fedResRepo.findOne(fr.getAggregationId());
+				for(String newFedId : fr.getFederatedResourceInfoMap().keySet()) {
+					existing.shareToNewFederation(newFedId, fr.getCloudResource()
+                                .getFederationInfo().getSharingInformation().get(newFedId).getBartering());
+				}
+				fedResRepo.save(existing);
+			}
+			else fedResRepo.save(fr);
+		}
 		
 		//forward message to PR via RMQ
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRaddedOrUpdatedFedResRK, receivedMessage);
@@ -235,8 +247,15 @@ public class RestInterface {
 			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
 		}
 		
+		Federation federatedHomeAndReceived = null;
 		//check that sender platform id and this platform id are in federation
-		if(!checkPlatformIdInFederationsCondition3(subscription.getPlatformId()))
+		for(Federation federation : fedRepo.findAll()) {			
+			//if this platform and sender platform are in federation...
+			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+			if(memberIds.contains(platformId) && memberIds.contains(subscription.getPlatformId())) federatedHomeAndReceived = federation;			
+		}
+		
+		if(federatedHomeAndReceived == null)
 			return new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST);
 		
 		//verify security headers
@@ -249,6 +268,8 @@ public class RestInterface {
 		
 		subRepo.save(subscription);
 		logger.info("Subscription request succesfully processed!");
+		
+		Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), federatedHomeAndReceived.getId());
 		
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
@@ -318,22 +339,6 @@ public class RestInterface {
 			if(!requestOk) return false;
 		}
 		return true;
-	}
-	
-	/**
-	 * Method checks if received senderPlatformId and this platformId are in federation.
-	 * 
-	 * @param senderPlatformId
-	 * @return
-	 */
-	public boolean checkPlatformIdInFederationsCondition3(String senderPlatformId) {
-		
-		for(Federation federation : fedRepo.findAll()) {			
-			//if this platform and sender platform are in federation...
-			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-			if(memberIds.contains(platformId) && memberIds.contains(senderPlatformId)) return true;			
-		}
-		return false;
 	}
 	
 }
