@@ -1,6 +1,9 @@
 package eu.h2020.symbiote.subman.controller;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -24,6 +27,7 @@ import eu.h2020.symbiote.cloud.model.internal.ResourcesDeletedMessage;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
 import eu.h2020.symbiote.subman.messaging.Consumers;
 import eu.h2020.symbiote.subman.messaging.RabbitManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
@@ -60,9 +64,9 @@ public class RestInterface {
 
 	private FederatedResourceRepository fedResRepo;
 	
-	private SubscriptionRepository subRepo;
+	private SubscriptionRepository subscriptionRepo;
 	
-	public static ObjectMapper om = new ObjectMapper();
+	public static ObjectMapper mapper = new ObjectMapper();
 	
 	@Autowired
     public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager, FederationRepository fedRepo, FederatedResourceRepository fedResRepo, SubscriptionRepository subscriptionRepository) {
@@ -70,7 +74,7 @@ public class RestInterface {
         this.securityManager = securityManager;
         this.fedRepo = fedRepo;
         this.fedResRepo = fedResRepo;
-        this.subRepo = subscriptionRepository;
+        this.subscriptionRepo = subscriptionRepository;
     }
 
 	/**
@@ -90,7 +94,7 @@ public class RestInterface {
 		logger.info("resourcesAddedOrUpdated HTTP-POST request received.");
 		ResourcesAddedOrUpdatedMessage receivedMessage;
 		try {
-			receivedMessage = om.readValue(receivedJson, ResourcesAddedOrUpdatedMessage.class);
+			receivedMessage = mapper.readValue(receivedJson, ResourcesAddedOrUpdatedMessage.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to ResourcesAddedOrUpdatedMessage object!");
 			return new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesAddedOrUpdatedMessage!",HttpStatus.BAD_REQUEST);
@@ -147,7 +151,7 @@ public class RestInterface {
 		ResourcesDeletedMessage receivedMessage;
 		
 		try {
-			receivedMessage = om.readValue(receivedJson, ResourcesDeletedMessage.class);
+			receivedMessage = mapper.readValue(receivedJson, ResourcesDeletedMessage.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to ResourcesDeletedMessage object!");
 			return new ResponseEntity<>("Received JSON message cannot be mapped to ResourcesDeletedMessage!", HttpStatus.BAD_REQUEST);
@@ -190,9 +194,11 @@ public class RestInterface {
 	}
 	
 	/**
-	 * Method receives subscription definition from platform owner.
+	 * Method receives subscription definition update from platform owner.
 	 * platformId of defined subscription must match this platformId,
-	 * and then subscription is stored to mongoDB.
+	 * and then subscription is stored to mongoDB. After that federatedResource repository
+	 * is iterated and fedRes that do not match the new subscription are removed and PR is
+	 * notified about it.
 	 * 
 	 * @param httpHeaders
 	 * @param receivedJson
@@ -205,7 +211,7 @@ public class RestInterface {
 		Subscription subscription;
 
 		try {
-			subscription = om.readValue(receivedJson, Subscription.class);
+			subscription = mapper.readValue(receivedJson, Subscription.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to Subscription object!");
 			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
@@ -218,8 +224,16 @@ public class RestInterface {
 		}
 
 		//if everything is ok, update platform subscription in mongoDB
-		subRepo.save(subscription);
-		logger.info("Subscribe request succesfully processed!");
+		subscriptionRepo.save(subscription);
+		
+		//send this new subscription to all platforms that are federated with home platform
+		for(String federatedPlatformId : Consumers.numberOfCommonFederations.keySet()) {
+			sendOwnSubscription(federatedPlatformId);
+		}
+		
+		clearUnsubscribedFederatedResourcesAndNotifyPR();
+		
+		logger.info("Subscribe request succesfully processed and subscription is updated!");
 		
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
@@ -241,21 +255,21 @@ public class RestInterface {
 		Subscription subscription;
 		
 		try {
-			subscription = om.readValue(receivedJson, Subscription.class);
+			subscription = mapper.readValue(receivedJson, Subscription.class);
 		} catch (Exception e) {
 			logger.info("Exception trying to map received json to Subscription object!");
 			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
 		}
 		
-		Federation federatedHomeAndReceived = null;
+		List<Federation> federatedHomeAndReceived = new ArrayList<>();
 		//check that sender platform id and this platform id are in federation
 		for(Federation federation : fedRepo.findAll()) {			
 			//if this platform and sender platform are in federation...
 			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-			if(memberIds.contains(platformId) && memberIds.contains(subscription.getPlatformId())) federatedHomeAndReceived = federation;			
+			if(memberIds.contains(platformId) && memberIds.contains(subscription.getPlatformId())) federatedHomeAndReceived.add(federation);			
 		}
 		
-		if(federatedHomeAndReceived == null)
+		if(federatedHomeAndReceived.size() == 0)
 			return new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST);
 		
 		//verify security headers
@@ -266,10 +280,12 @@ public class RestInterface {
 			return securityResponse;
 		}
 		
-		subRepo.save(subscription);
+		subscriptionRepo.save(subscription);
 		logger.info("Subscription request succesfully processed!");
 		
-		Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), federatedHomeAndReceived.getId());
+		for(String commonFederationId : federatedHomeAndReceived.stream().map(Federation::getId).collect(Collectors.toList())) {
+			Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), commonFederationId);
+		}
 		
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
@@ -339,6 +355,59 @@ public class RestInterface {
 			if(!requestOk) return false;
 		}
 		return true;
+	}
+	
+	/**
+	 * Method creates securityRequest and sends this platform subscription object to
+	 * the given federated platform.
+	 * @param federatedPlatformId
+	 */
+	private void sendOwnSubscription (String federatedPlatformId) {
+		// Wrap in try/catch to avoid requeuing
+        try {
+		//send HTTP-POST of own subscription
+		SecurityRequest securityRequest = securityManager.generateSecurityRequest();
+        if (securityRequest != null) {
+            logger.debug("Security Request created successfully!");
+
+            // if the creation of securityRequest is successful send it to the federated platform  
+			Consumers.sendSecurityRequestAndVerifyResponse(securityRequest,
+					mapper.writeValueAsString(subscriptionRepo.findOne(platformId)),
+					Consumers.addressBook.get(federatedPlatformId).replaceAll("/+$", "") + "/subscriptionManager" + "/subscription",
+					federatedPlatformId);       
+        } else
+            logger.info(
+                    "Failed to send own subscription message due to securityRequest creation failure!");
+        } catch (Exception e) {
+            logger.warn("Exception thrown during processing federationMember addition.", e);
+        }
+	}
+	
+	/**
+	 * Method removes all federated resources from local repository that are not shared by this platform
+	 * and that do not fit the new subscription of home platform.
+	 * It then sends a notification to Platform Registry with symbioteIds of deleted federated resources.
+	 */
+	private void clearUnsubscribedFederatedResourcesAndNotifyPR() {
+		Set<String> PRnotification = new HashSet<>();
+		
+		List<FederatedResource> allFederatedResources = fedResRepo.findAll();
+		for(FederatedResource fr : allFederatedResources) {
+			//if federatedResource is not shared by this platform
+			if(!fr.getPlatformId().equals(platformId)) {
+				//if this platform is not subscribed to this federated resource anymore...
+				if(!Consumers.isSubscribed(subscriptionRepo.findOne(platformId), fr)) {
+					//delete from fedRes repository
+					fedResRepo.delete(fr.getAggregationId());
+					//store symbioteIds of deleted federated resource
+					for(String fedId : fr.getFederations()) {
+						PRnotification.add(fr.getAggregationId()+"@"+fedId);
+					}
+				}
+			}
+		}
+		//send notification to PR about deleted federated resources
+		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(PRnotification));
 	}
 	
 }

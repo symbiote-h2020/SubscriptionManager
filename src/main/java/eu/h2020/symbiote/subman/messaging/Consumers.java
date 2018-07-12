@@ -85,10 +85,10 @@ public class Consumers {
 	private static ObjectMapper mapper = new ObjectMapper();
 	
 	//<platformId,numberOfCommonFederations>
-	private static Map<String, Integer> numberOfCommonFederations;
+	public static Map<String, Integer> numberOfCommonFederations;
 	
 	//<platformId, platformInterworkingServiceURL>
-	private static Map<String, String> addressBook;
+	public static Map<String, String> addressBook;
 
 	@Autowired
 	public Consumers() {
@@ -196,7 +196,7 @@ public class Consumers {
                     for (FederationMember fm : interestedFederation.getMembers()) {
 
                     	//to avoid platform sending HTTP request to itself
-                    	if(fm.getPlatformId().equals(this.platformId)) continue;
+                    	if(fm.getPlatformId().equals(platformId)) continue;
                     	
                     	//check if current federation member is subscribed to current federated resource                 	 
                     	if(isSubscribed(subscriptionRepo.findOne(fm.getPlatformId()), fr)) {
@@ -222,6 +222,8 @@ public class Consumers {
 	                        FederatedResource platformFederatedResource = platformMap.get(fr.getAggregationId());
 	                        platformFederatedResource.shareToNewFederation(interestedFederationId, fr.getCloudResource()
 	                                .getFederationInfo().getSharingInformation().get(interestedFederationId).getBartering());
+	                        //overwrite the entry in a map with fedRes with updated federation info
+	                        platformMap.put(fr.getAggregationId(), platformFederatedResource);
                     	}
                     }
                 }
@@ -252,7 +254,6 @@ public class Consumers {
         } catch (Exception e) {
             logger.warn("Exception thrown during addedOrUpdateFederatedResource", e);
         }
-
     }
 
 	/**
@@ -307,7 +308,7 @@ public class Consumers {
                 for (FederationMember fedMember : currentFederation.getMembers()) {
                     	
                 	//to avoid platform sending HTTP request to itself
-                	if(fedMember.getPlatformId().equals(this.platformId))
+                	if(fedMember.getPlatformId().equals(platformId))
                     	continue;
 
                     //check if current federation member is subscribed to current federated resource that is being deleted from certain federations
@@ -357,7 +358,7 @@ public class Consumers {
 	 * @param completeUrl
 	 * @param platformId
 	 */
-	private static void sendSecurityRequestAndVerifyResponse(SecurityRequest securityRequest, String jsonMessage, String completeUrl, String platformId) {
+	public static void sendSecurityRequestAndVerifyResponse(SecurityRequest securityRequest, String jsonMessage, String completeUrl, String platformId) {
 		ResponseEntity<?> serviceResponse = null;
         try {
         	serviceResponse = SecuredRequestSender.sendSecuredRequest(securityRequest, jsonMessage, completeUrl);
