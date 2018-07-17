@@ -42,6 +42,7 @@ import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
 import eu.h2020.symbiote.security.commons.SecurityConstants;
 import eu.h2020.symbiote.security.communication.payloads.SecurityRequest;
+import eu.h2020.symbiote.subman.controller.RestInterface;
 import eu.h2020.symbiote.subman.controller.SecuredRequestSender;
 import eu.h2020.symbiote.subman.controller.SecurityManager;
 import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
@@ -284,8 +285,7 @@ public class Consumers {
                 }
 
                 //remove federated resource from given federations
-                toUpdate.getFederatedResourceInfoMap().remove(splitSymbioteID[2]);
-                toUpdate.getCloudResource().getFederationInfo().getSharingInformation().remove(splitSymbioteID[2]);
+                toUpdate.unshareFromFederation(splitSymbioteID[2]);
 
                 // if federatedResource is unshared from all federations remove it
                 if (toUpdate.getFederatedResourceInfoMap().size() == 0)
@@ -425,7 +425,7 @@ public class Consumers {
 				if(fedMember.getPlatformId().equals(platformId))continue; //skip procedure for this platform
 				//map keeps number of common federations of this platform with others
 				addressBook.put(fedMember.getPlatformId(), fedMember.getInterworkingServiceURL());
-				processFedMemberAdding(fedMember.getPlatformId(), federation.getId());
+				processFedMemberAdding(fedMember.getPlatformId(), federation.getId(), true);
 			}
 		}
 	}
@@ -463,7 +463,7 @@ public class Consumers {
 				//if new federation member is added in this updated federation...
 				else if(!oldMembers.contains(newFedMembersId)){
 					addressBook.put(newFedMembersId, federation.getMembers().stream().filter(x -> newFedMembersId.equals(x.getPlatformId())).findAny().get().getInterworkingServiceURL());
-					processFedMemberAdding(newFedMembersId, federation.getId());
+					processFedMemberAdding(newFedMembersId, federation.getId(), false);
 				}
 			}			
 			for(String oldFedMembersId : oldMembers){
@@ -559,17 +559,14 @@ public class Consumers {
 	 * Method processes adding of FederationMember(Id) to a common federation with this platform.
 	 * @param newFedMembersId
 	 */
-	protected void processFedMemberAdding(String newFedMemberId, String federationId){
+	protected void processFedMemberAdding(String newFedMemberId, String federationId, boolean created){
 		if(numberOfCommonFederations.containsKey(newFedMemberId)) {
 			numberOfCommonFederations.put(newFedMemberId, numberOfCommonFederations.get(newFedMemberId) + 1);
-			processSendingExistingFederatedResources(newFedMemberId, federationId);
+			if(!created)
+				processSendingExistingFederatedResources(newFedMemberId, RestInterface.findCommonFederations(newFedMemberId));
 		}
 		else {
 			numberOfCommonFederations.put(newFedMemberId, 1);
-//			Subscription subscription = new Subscription();
-//			subscription.setPlatformId(newFedMemberId);
-//			if(subscriptionRepo.findOne(newFedMemberId) == null)
-//				subscriptionRepo.save(subscription);
 			
 			// Wrap in try/catch to avoid requeuing
 	        try {
@@ -593,14 +590,16 @@ public class Consumers {
 	}
 	
 	/**
-	 * If there are already shared resources in a given federation that fit the newly added members subscription,
+	 * If there are already shared resources in a given federation set that fit the newly added members subscription,
 	 * they are sent to it.
+	 * 
 	 * @param newFedMemberId
 	 * @param federationId
 	 */
-	public static void processSendingExistingFederatedResources(String newFedMemberId, String federationId) {
-		//check if there are shared resources in this federation that fit the subscription of added member
-		List<FederatedResource> forSending = findExistingSharedResourcesInFederation(newFedMemberId, federationId);
+	public static void processSendingExistingFederatedResources(String newFedMemberId, List<String> federationIds) {
+		
+		//check if there are shared resources in received federations that fit the subscription of added member
+		List<FederatedResource> forSending = findExistingSharedResourcesInFederations(newFedMemberId, federationIds);
 		
 		if(forSending.size() > 0) {
 		//send found federatedResource to newFedMemberId
@@ -610,8 +609,8 @@ public class Consumers {
 	                logger.debug("Security Request created successfully!");
 
 	                // if the creation of securityRequest is successful send it to the federated platform  
-	                logger.debug("Sending  existing federated resources: " +
-                            forSending.stream().map(FederatedResource::getAggregationId).collect(Collectors.toList()) + "to platform " + newFedMemberId + " that is added to federation " + federationId);
+	                logger.debug("Sending federated resources: " +
+                            forSending.stream().map(FederatedResource::getAggregationId).collect(Collectors.toList()) + " to platform: " + newFedMemberId);
 
 					sendSecurityRequestAndVerifyResponse(securityRequest,
 							mapper.writeValueAsString(new ResourcesAddedOrUpdatedMessage(forSending)),
@@ -627,33 +626,40 @@ public class Consumers {
 	}
 	
 	/**
-	 * Method that is used when new platform is added to existing federation, and home platform is already federated
-	 * with newly added member in some another federation so its subscription object exists. Home platform checks
-	 * if it has shared federated resources in existing federation where a new member is added and it verifies that
-	 * added platform is subscribed to this federated resource. All found federated resources are then returned in a list
-	 * but containing only this federation (cleaned).
+	 * Method finds all federated resources shared by this platform. It checks if they are shared in federations common to the given 
+	 * memberId and this platform, and if yes, adds them in a list without the info about federations that are not common to them.
+	 * 
 	 * @param newFedMemberId
 	 * @param federationId
 	 * @return
 	 */
-	public static List<FederatedResource> findExistingSharedResourcesInFederation(String newFedMemberId, String federationId){
+	public static List<FederatedResource> findExistingSharedResourcesInFederations(String newFedMemberId, List<String> federationIds){
 		List<FederatedResource> allFedRes = fedResRepo.findAll();
 		List<FederatedResource> forSending = new ArrayList<>();
 		for(FederatedResource fedRes : allFedRes) {
-			//if this platform shared current federated resource and it is shared in this federation
-			if(fedRes.getPlatformId().equals(platformId) && fedRes.getFederatedResourceInfoMap().containsKey(federationId)) {
-				Subscription addedMemberSubscription = subscriptionRepo.findOne(newFedMemberId);
-				if(addedMemberSubscription == null) {
-					logger.debug("Added member subscription does not exist! Federated resources will be sent when subscription object is received!");
-					break;
+			//if this platform shared current fedRes...
+			if(fedRes.getPlatformId().equals(platformId)){
+				//find all given common federations in fedRes
+				List<String> toStay = new ArrayList<>();
+				for(String fedId : federationIds) {
+					if(fedRes.getFederatedResourceInfoMap().containsKey(fedId))toStay.add(fedId);
 				}
-				else {
-					if(isSubscribed(addedMemberSubscription, fedRes)) {
-						FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fedRes));
-                        clonedFr.clearPrivateInfo();
-                        clonedFr.shareToNewFederation(federationId, fedRes.getCloudResource()
-                                .getFederationInfo().getSharingInformation().get(federationId).getBartering());
-                        forSending.add(clonedFr);
+				if(toStay.size()>0) {
+					Subscription addedMemberSubscription = subscriptionRepo.findOne(newFedMemberId);
+					if(addedMemberSubscription == null) {
+						logger.debug("Added member subscription does not exist! Federated resources will be sent when subscription object is received!");
+						break;
+					}
+					else {
+						if(isSubscribed(addedMemberSubscription, fedRes)) {
+							FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fedRes));
+	                        clonedFr.clearPrivateInfo();
+	                        for(String federationId : toStay) {
+		                        clonedFr.shareToNewFederation(federationId, fedRes.getCloudResource()
+		                                .getFederationInfo().getSharingInformation().get(federationId).getBartering());
+	                        }
+	                        forSending.add(clonedFr);
+						}
 					}
 				}
 			}

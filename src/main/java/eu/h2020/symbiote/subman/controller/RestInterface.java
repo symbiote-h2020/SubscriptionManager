@@ -49,7 +49,7 @@ public class RestInterface {
 	private SecurityManager securityManager;
 	
 	@Value("${platform.id}")
-	private String platformId;
+	private static String platformId;
 	
 	@Value("${rabbit.exchange.platformRegistry.name}")
 	private String PRexchange;
@@ -60,7 +60,7 @@ public class RestInterface {
 	@Value("${rabbit.routingKey.platformRegistry.removeFederatedResources}")
 	private String PRremovedFedResRK;
 	
-	private FederationRepository fedRepo;
+	private static FederationRepository fedRepo;
 
 	private FederatedResourceRepository fedResRepo;
 	
@@ -72,7 +72,7 @@ public class RestInterface {
     public RestInterface(RabbitManager rabbitManager, SecurityManager securityManager, FederationRepository fedRepo, FederatedResourceRepository fedResRepo, SubscriptionRepository subscriptionRepository) {
         this.rabbitManager = rabbitManager;
         this.securityManager = securityManager;
-        this.fedRepo = fedRepo;
+        RestInterface.fedRepo = fedRepo;
         this.fedResRepo = fedResRepo;
         this.subscriptionRepo = subscriptionRepository;
     }
@@ -114,16 +114,7 @@ public class RestInterface {
 
 		//store received federatedResources to mongoDB
 		for (FederatedResource fr : receivedMessage.getNewFederatedResources()) {
-			//if resource already exist just add federations from received fedRes
-			if(fedResRepo.exists(fr.getAggregationId())) {
-				FederatedResource existing = fedResRepo.findOne(fr.getAggregationId());
-				for(String newFedId : fr.getFederatedResourceInfoMap().keySet()) {
-					existing.shareToNewFederation(newFedId, fr.getCloudResource()
-                                .getFederationInfo().getSharingInformation().get(newFedId).getBartering());
-				}
-				fedResRepo.save(existing);
-			}
-			else fedResRepo.save(fr);
+			fedResRepo.save(fr);
 		}
 		
 		//forward message to PR via RMQ
@@ -177,8 +168,7 @@ public class RestInterface {
 			String [] splitSymbioteId = symbioteId.split("@");
 			FederatedResource current = fedResRepo.findOne(splitSymbioteId[0]+"@"+splitSymbioteId[1]);
 			if(current != null) {
-				current.getFederatedResourceInfoMap().remove(splitSymbioteId[2]);
-				current.getCloudResource().getFederationInfo().getSharingInformation().remove(splitSymbioteId[2]);
+				current.unshareFromFederation(splitSymbioteId[2]);
 				if(current.getFederatedResourceInfoMap().size() > 0) fedResRepo.save(current); // if fedRes is shared in another federations save it without deleted one
 				else fedResRepo.delete(splitSymbioteId[0]+"@"+splitSymbioteId[1]);
 			}
@@ -261,13 +251,8 @@ public class RestInterface {
 			return new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST);
 		}
 		
-		List<Federation> federatedHomeAndReceived = new ArrayList<>();
-		//check that sender platform id and this platform id are in federation
-		for(Federation federation : fedRepo.findAll()) {			
-			//if this platform and sender platform are in federation...
-			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-			if(memberIds.contains(platformId) && memberIds.contains(subscription.getPlatformId())) federatedHomeAndReceived.add(federation);			
-		}
+		//fetch common federationIDs with platform that sent the subscription
+		List<String> federatedHomeAndReceived = findCommonFederations(subscription.getPlatformId());
 		
 		if(federatedHomeAndReceived.size() == 0)
 			return new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST);
@@ -283,9 +268,7 @@ public class RestInterface {
 		subscriptionRepo.save(subscription);
 		logger.info("Subscription request succesfully processed!");
 		
-		for(String commonFederationId : federatedHomeAndReceived.stream().map(Federation::getId).collect(Collectors.toList())) {
-			Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), commonFederationId);
-		}
+		Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), federatedHomeAndReceived);
 		
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
@@ -410,4 +393,19 @@ public class RestInterface {
 		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(PRnotification));
 	}
 	
+	/**
+	 * Method finds all existing federations containing this platform and platform with the given id.
+	 * 
+	 * @param otherPlatformId
+	 * @return
+	 */
+	public static List<String> findCommonFederations(String otherPlatformId){
+		List<String> federatedHomeAndReceived = new ArrayList<>();
+		for(Federation federation : fedRepo.findAll()) {			
+			//if this platform and other platform are in federation...
+			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+			if(memberIds.contains(platformId) && memberIds.contains(otherPlatformId)) federatedHomeAndReceived.add(federation.getId());			
+		}
+		return federatedHomeAndReceived;
+	}
 }
