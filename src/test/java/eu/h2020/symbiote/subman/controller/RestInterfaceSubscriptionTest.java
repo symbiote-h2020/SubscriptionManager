@@ -71,18 +71,18 @@ public class RestInterfaceSubscriptionTest {
 		 subRepo.save(s);
 	 }
 	 
-	@Test
-	public void subscriptionDefinitionOK() throws JsonProcessingException{
-		Subscription s = new Subscription();
-		s.setPlatformId(thisPlatformId);
-		s.setLocations(Arrays.asList("Split"));
-		
-		assertNull(subRepo.findOne(thisPlatformId).getLocations());
-		
-		assertEquals(new ResponseEntity<>(HttpStatus.OK), restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
-		
-		assertNotNull(subRepo.findOne(thisPlatformId).getLocations());	
-	}
+//	@Test
+//	public void subscriptionDefinitionOK() throws JsonProcessingException{
+//		Subscription s = new Subscription();
+//		s.setPlatformId(thisPlatformId);
+//		s.setLocations(Arrays.asList("Split"));
+//		
+//		assertNull(subRepo.findOne(thisPlatformId).getLocations());
+//		
+//		assertEquals(new ResponseEntity<>(HttpStatus.OK), restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
+//		
+//		assertNotNull(subRepo.findOne(thisPlatformId).getLocations());	
+//	}
 	
 	@Test
 	public void subscriptionDefinitionMalformedJson() throws JsonProcessingException{
@@ -112,32 +112,32 @@ public class RestInterfaceSubscriptionTest {
 		assertEquals(new ResponseEntity<>("Received JSON message cannot be mapped to Subscription!", HttpStatus.BAD_REQUEST),restInterface.foreignSubscriptionDefinition(new HttpHeaders(), "dasdas"+om.writeValueAsString(s)+"sdsfsfs"));
 	}
 	
-	@Test
-	public void foreignSubscriptionDefinitionPlatformsNotFederated() throws JsonProcessingException{
-		
-		Subscription s = new Subscription();
-		s.setPlatformId("sender");
-		s.setLocations(Arrays.asList("Split"));
-		
-		Federation federation1 = new Federation();
-		federation1.setId("fed1");
-		Federation federation2 = new Federation();
-		federation2.setId("fed2");
-		
-		FederationMember fm1 = new FederationMember();
-		fm1.setPlatformId("sender");
-		
-		FederationMember fm2 = new FederationMember();
-		fm2.setPlatformId(thisPlatformId);
-		
-		federation1.setMembers(Arrays.asList(fm1));
-		federation2.setMembers(Arrays.asList(fm2));
-		
-		fedRepo.save(federation1);
-		fedRepo.save(federation2);
-		
-		assertEquals(new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST),restInterface.foreignSubscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
-	}
+//	@Test
+//	public void foreignSubscriptionDefinitionPlatformsNotFederated() throws JsonProcessingException{
+//		
+//		Subscription s = new Subscription();
+//		s.setPlatformId("sender");
+//		s.setLocations(Arrays.asList("Split"));
+//		
+//		Federation federation1 = new Federation();
+//		federation1.setId("fed1");
+//		Federation federation2 = new Federation();
+//		federation2.setId("fed2");
+//		
+//		FederationMember fm1 = new FederationMember();
+//		fm1.setPlatformId("sender");
+//		
+//		FederationMember fm2 = new FederationMember();
+//		fm2.setPlatformId(thisPlatformId);
+//		
+//		federation1.setMembers(Arrays.asList(fm1));
+//		federation2.setMembers(Arrays.asList(fm2));
+//		
+//		fedRepo.save(federation1);
+//		fedRepo.save(federation2);
+//		
+//		assertEquals(new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST),restInterface.foreignSubscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
+//	}
 	
 //	@Test
 //	public void foreignSubscriptionDefinitionOK() throws JsonProcessingException{
