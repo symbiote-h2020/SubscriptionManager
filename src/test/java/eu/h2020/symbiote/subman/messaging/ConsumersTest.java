@@ -339,36 +339,36 @@ public class ConsumersTest {
 //    	assertEquals(0, current.size());
 //    }
     
-    @Test
-    public void serializationTest() {
-    	Resource r = new Resource();
-    	r.setId("id1");
-    	r.setName("dummy");
-    	r.setInterworkingServiceURL("dummyURL");
-    	CloudResource cr = new CloudResource();
-    	cr.setInternalId("id1");
-    	cr.setPluginId("pg1");
-    	cr.setResource(r);
-    	FederationInfoBean fib = new FederationInfoBean();
-    	fib.setAggregationId("id@shs");
-    	cr.setFederationInfo(fib);
-        FederatedResource fr = new FederatedResource(cr);
-        Consumers con = new Consumers();
-        
-        String serialized = con.serializeFederatedResource(fr);
-        FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
-        
-        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
-    }
+//    @Test
+//    public void serializationTest() {
+//    	Resource r = new Resource();
+//    	r.setId("id1");
+//    	r.setName("dummy");
+//    	r.setInterworkingServiceURL("dummyURL");
+//    	CloudResource cr = new CloudResource();
+//    	cr.setInternalId("id1");
+//    	cr.setPluginId("pg1");
+//    	cr.setResource(r);
+//    	FederationInfoBean fib = new FederationInfoBean();
+//    	fib.setAggregationId("id@shs");
+//    	cr.setFederationInfo(fib);
+//        FederatedResource fr = new FederatedResource(cr);
+//        Consumers con = new Consumers();
+//        
+//        String serialized = con.serializeFederatedResource(fr);
+//        FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
+//        
+//        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
+//    }
     
-    @Test
-    public void serializationFailureTest() {
-    	
-        Consumers con = new Consumers();
-        FederatedResource cloneFr = con.deserializeFederatedResource("dummy");
-        
-        assertNull(cloneFr);
-    }
+//    @Test
+//    public void serializationFailureTest() {
+//    	
+//        Consumers con = new Consumers();
+//        FederatedResource cloneFr = con.deserializeFederatedResource("dummy");
+//        
+//        assertNull(cloneFr);
+//    }
     
 //    @Test
 //    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTest() throws InterruptedException{
