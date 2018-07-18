@@ -113,6 +113,8 @@ public class ConsumersTest {
         federationRepository.deleteAll();
         fedResRepo.deleteAll();
         subRepo.deleteAll();
+        Consumers.addressBook.clear();
+        Consumers.numberOfCommonFederations.clear();
         resDummy = new Service();
 		resDummy.setInterworkingServiceURL("dummyUrl");
 		dummy = new CloudResource();
@@ -144,45 +146,34 @@ public class ConsumersTest {
     	subRepo.save(s);
     }
 
-//    @Test
-//    public void federationCreatedTest() throws InterruptedException {
-//        Federation federation = new Federation();
-//
-//        federation.setId("exampleId");
-//        federation.setName("FederationName");
-//        federation.setMembers(Arrays.asList(fm,fm1));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
-//
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that federation is saved in mongoDB
-//        assertNotNull(federationRepository.findOne("exampleId"));
-//        //check that subscription is created for federation member
-//        assertNotNull(subRepo.findOne(fm.getPlatformId()));
-//        
-//        //manipulate subscription of added federationMember
-//        Subscription s = new Subscription();
-//        s.setPlatformId("todel");
-//        s.setLocations(Arrays.asList("Split"));
-//        subRepo.save(s);
-//        
-//        federation.setId("exampleId1");
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that the subscription of federationMember is not overwritten since it already exists
-//        assertEquals("Split", subRepo.findOne(fm.getPlatformId()).getLocations().get(0));
-//        
-//        FederationMember fm2 = new FederationMember();
-//        fm2.setPlatformId("fmaaa");
-//        federation.setMembers(Arrays.asList(fm2));
-//        federation.setId("exampleId2");
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that subscription is not created for fm2 since it is not federated with this platform
-//        assertNull(subRepo.findOne(fm2.getPlatformId()));
-//        
-//    }
+    @Test
+    public void federationCreatedTest() throws InterruptedException {
+        Federation federation = new Federation();
+
+        federation.setId("exampleId");
+        federation.setName("FederationName");
+        federation.setMembers(Arrays.asList(fm,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+
+        TimeUnit.MILLISECONDS.sleep(1000);
+        //check that federation is saved in mongoDB+
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        assertNotNull(federationRepository.findOne("exampleId"));
+        
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fmaaa");
+        fm2.setInterworkingServiceURL("http://fm2.com");
+        
+        federation.setMembers(Arrays.asList(fm2));
+        federation.setId("exampleId2");
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(1000);
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        assertEquals(2, federationRepository.findAll().size());
+    }
     
 //    @Test
 //    public void federationChangedTest() throws InterruptedException {
@@ -236,236 +227,263 @@ public class ConsumersTest {
 //        assertNull(subRepo.findOne(fm5.getPlatformId()));
 //    }
 
-//    @Test
-//    public void federationDeletedTest() throws InterruptedException {
-//
-//    	Federation federation = new Federation();
-//
-//        federation.setId("exampleId");
-//        federation.setName("FederationName");
-//        FederationMember fm2 = new FederationMember();
-//        fm2.setPlatformId("fm2");
-//        federation.setMembers(Arrays.asList(fm,fm1,fm2));
-//
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
-//
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        
-//        assertNotNull(subRepo.findOne(fm.getPlatformId()));
-//        assertNotNull(subRepo.findOne(fm2.getPlatformId()));
-//        assertNotNull(federationRepository.findOne("exampleId"));
-//        
-//        RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
-//        Message message = new Message("exampleId".getBytes(), new MessageProperties());
-//        rabbitTemplate.send(federationExchange, federationDeletedKey, message);
-//
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that federation is removed from mongoDB
-//        assertNull(federationRepository.findOne("exampleId"));
-//        //check that subscriptions of fm and fm2 are removed from mongoDB
-//        assertNull(subRepo.findOne(fm.getPlatformId()));
-//        assertNull(subRepo.findOne(fm2.getPlatformId()));
-//    }
+    @Test
+    public void federationDeletedTest() throws InterruptedException {
+
+    	Federation federation = new Federation();
+
+        federation.setId("exampleId");
+        federation.setName("FederationName");
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fm2");
+        fm2.setInterworkingServiceURL("http://fm2.com");
+        federation.setMembers(Arrays.asList(fm,fm1,fm2));
+        
+        Federation federation2 = new Federation();
+        federation2.setId("exampleId2");
+        federation2.setName("FederationName2");
+        federation2.setMembers(Arrays.asList(fm,fm1));
+        
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+
+        TimeUnit.MILLISECONDS.sleep(800);
+
+        assertNotNull(federationRepository.findOne("exampleId"));
+        assertEquals(2, Consumers.addressBook.size());
+        assertEquals(2, Consumers.numberOfCommonFederations.size());
+        
+        TimeUnit.MILLISECONDS.sleep(400);
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation2);
+        TimeUnit.MILLISECONDS.sleep(800);
+        assertEquals(2, Consumers.addressBook.size());
+        assertEquals(2, Consumers.numberOfCommonFederations.size());
+        
+        RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
+        Message message = new Message("exampleId".getBytes(), new MessageProperties());
+        rabbitTemplate.send(federationExchange, federationDeletedKey, message);
+
+        TimeUnit.MILLISECONDS.sleep(800);
+        //check that federation is removed from mongoDB
+        assertNotNull(federationRepository.findOne("exampleId2"));
+        assertNull(federationRepository.findOne("exampleId"));
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        
+        Message message1 = new Message("exampleId2".getBytes(), new MessageProperties());
+        rabbitTemplate.send(federationExchange, federationDeletedKey, message1);
+        TimeUnit.MILLISECONDS.sleep(1000);
+        
+        assertNull(federationRepository.findOne("exampleId2"));
+        assertEquals(0, Consumers.addressBook.size());
+        assertEquals(0, Consumers.numberOfCommonFederations.size());
+    }
     
-//    @Test
-//    public void addedOrUpdatedFederatedResourceLocalMongoStorageTest() throws InterruptedException{
-//    	
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(1, current.size());  	
-//    }
+    @Test
+    public void addedOrUpdatedFederatedResourceLocalMongoStorageTest() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
+    }
     
-//    @Test
-//    public void addedOrUpdatedFederatedResourceInterestedFederationTest() throws InterruptedException{
-//    	
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    	f.setId("todel");
-//    	federationRepository.insert(f);
-//    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(1, current.size());  	
-//    }
+    @Test
+    public void addedOrUpdatedFederatedResourceInterestedFederationTest() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	f.setId("todel");
+    	federationRepository.insert(f);
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
+    }
     
-//    @Test
-//    public void deletedFederatedResourceLocalMongoDeletitionTest() throws InterruptedException{
-//    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
-//    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
-//    	fedDummies.put("todel", fri);
-//    	fr.setFederatedResourceInfoMap(fedDummies);
-//    	fedResRepo.save(fr);
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(1, current.get(0).getFederations().size());
-//    	assertEquals(1, current.size());
-//    	
-//    	Set<String> toDelete = new HashSet<>();
-//    	toDelete.add("a@a@todel");
-//    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    }
+    @Test
+    public void deletedFederatedResourceLocalMongoDeletitionTest() throws InterruptedException{
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	FederatedResourceInfo fri2 = new FederatedResourceInfo("a@a@todel123", "odataurl", "resturl");
+    	fedDummies.put("todel123", fri2);
+    	fr.setFederatedResourceInfoMap(fedDummies);
+    	fedResRepo.save(fr);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(2, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());
+    	
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel123");
+    	msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
     
-//    @Test
-//    public void deletedFederatedResourceInterestedFederationTest() throws InterruptedException{
-//    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
-//    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
-//    	fedDummies.put("todel", fri);
-//    	fr.setFederatedResourceInfoMap(fedDummies);
-//    	fedResRepo.save(fr);
-//    	f.setId("todel");
-//    	federationRepository.insert(f);
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(1, current.get(0).getFederations().size());
-//    	assertEquals(1, current.size());
-//    	
-//    	Set<String> toDelete = new HashSet<>();
-//    	toDelete.add("a@a@todel");
-//    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    }
+    @Test
+    public void deletedFederatedResourceInterestedFederationTest() throws InterruptedException{
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
+    	fedResRepo.save(fr);
+    	f.setId("todel");
+    	federationRepository.insert(f);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
     
-//    @Test
-//    public void serializationTest() {
-//    	Resource r = new Resource();
-//    	r.setId("id1");
-//    	r.setName("dummy");
-//    	r.setInterworkingServiceURL("dummyURL");
-//    	CloudResource cr = new CloudResource();
-//    	cr.setInternalId("id1");
-//    	cr.setPluginId("pg1");
-//    	cr.setResource(r);
-//    	FederationInfoBean fib = new FederationInfoBean();
-//    	fib.setAggregationId("id@shs");
-//    	cr.setFederationInfo(fib);
-//        FederatedResource fr = new FederatedResource(cr);
-//        Consumers con = new Consumers();
-//        
-//        String serialized = con.serializeFederatedResource(fr);
-//        FederatedResource cloneFr = con.deserializeFederatedResource(serialized);
-//        
-//        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
-//    }
+    @Test
+    public void serializationTest() {
+    	Resource r = new Resource();
+    	r.setId("id1");
+    	r.setName("dummy");
+    	r.setInterworkingServiceURL("dummyURL");
+    	CloudResource cr = new CloudResource();
+    	cr.setInternalId("id1");
+    	cr.setPluginId("pg1");
+    	cr.setResource(r);
+    	FederationInfoBean fib = new FederationInfoBean();
+    	fib.setAggregationId("id@shs");
+    	cr.setFederationInfo(fib);
+        FederatedResource fr = new FederatedResource(cr);
+        
+        String serialized = Consumers.serializeFederatedResource(fr);
+        FederatedResource cloneFr = Consumers.deserializeFederatedResource(serialized);
+        
+        assertEquals(cloneFr.getCloudResource().getInternalId(), fr.getCloudResource().getInternalId());
+    }
     
-//    @Test
-//    public void serializationFailureTest() {
-//    	
-//        Consumers con = new Consumers();
-//        FederatedResource cloneFr = con.deserializeFederatedResource("dummy");
-//        
-//        assertNull(cloneFr);
-//    }
+    @Test
+    public void serializationFailureTest() {
+    	
+        FederatedResource cloneFr = Consumers.deserializeFederatedResource("dummy");
+        
+        assertNull(cloneFr);
+    }
     
-//    @Test
-//    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTest() throws InterruptedException{
-//    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
-//    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
-//    	fedDummies.put("todel", fri);
-//    	fr.setFederatedResourceInfoMap(fedDummies);
-//    	fedResRepo.save(fr);
-//    	f.setId("todel");
-//    	
-//    	//federationRepository.insert(f);
-//    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(1, current.get(0).getFederations().size());
-//    	assertEquals(1, current.size());
-//    	
-//    	Set<String> toDelete = new HashSet<>();
-//    	toDelete.add("a@a@todel");
-//    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    }
+    @Test
+    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTest() throws InterruptedException{
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
+    	fedResRepo.save(fr);
+    	f.setId("todel");
+    	
+    	//federationRepository.insert(f);
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(600);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
     
-//    @Test
-//    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
-//    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
-//    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
-//    	fedDummies.put("todel", fri);
-//    	fr.setFederatedResourceInfoMap(fedDummies);
-//    	fedResRepo.save(fr);
-//    	f.setId("todel");
-//    	
-//    	//federationRepository.insert(f);
-//    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(1, current.get(0).getFederations().size());
-//    	assertEquals(1, current.size());
-//    	
-//    	Set<String> toDelete = new HashSet<>();
-//    	toDelete.add("a@a@todel");
-//    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
-//    	
-//    	 
-//    	doReturn(new SecurityRequest("sdad"))
-//    		.when(securityManager).generateSecurityRequest();
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    }
+    @Test
+    public void deletedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
+    	fedResRepo.save(fr);
+    	f.setMembers(Arrays.asList(fm,fm1));
+    	f.setId("todel");
+    	
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(1000);
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(1, current.get(0).getFederations().size());
+    	assertEquals(1, current.size());
+    	assertEquals(1, Consumers.numberOfCommonFederations.size());
+    	assertEquals(1, Consumers.addressBook.size());
+    	
+    	Set<String> toDelete = new HashSet<>();
+    	toDelete.add("a@a@todel");
+    	ResourcesDeletedMessage msg = new ResourcesDeletedMessage(toDelete);
+    	Subscription s = new Subscription();
+    	s.setPlatformId("todel");
+    	subRepo.save(s);
+    	 
+    	doReturn(new SecurityRequest("sdad"))
+    		.when(securityManager).generateSecurityRequest();
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    }
     
     /**
      * Throws nullPointer since SecuredRequestSender does not return service response
      * @throws InterruptedException
      */
-//    @Test
-//    public void addedOrUpdatedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
-//    	
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    	f.setMembers(Arrays.asList(fm,fm1));
-//    	//federationRepository.insert(f);
-//    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	
-//    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-//    	
-//    	doReturn(new SecurityRequest("sdad"))
-//        .when(securityManager).generateSecurityRequest();
-//        
-//    	doReturn(true)
-//        .when(securityManager).verifyReceivedResponse(any(String.class),any(String.class),any(String.class));
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(1, current.size());  	
-//    }
-    
-//    @Test
-//    public void addedOrUpdatedFederatedResourceInterestedFederationBroadcastNoResponseTest() throws InterruptedException{
-//    	
-//    	List<FederatedResource> current = fedResRepo.findAll();
-//    	assertEquals(0, current.size());
-//    	f.setId("todel");
-//    	federationRepository.insert(f);
-//    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
-//    	TimeUnit.MILLISECONDS.sleep(400);
-//    	current = fedResRepo.findAll();
-//    	assertEquals(1, current.size());  	
-//    }
+    @Test
+    public void addedOrUpdatedFederatedResourceInterestedFederationBroadcastNoResponseTestMockedSecurity() throws InterruptedException{
+    	
+    	List<FederatedResource> current = fedResRepo.findAll();
+    	assertEquals(0, current.size());
+    	f.setMembers(Arrays.asList(fm,fm1));
+    	//federationRepository.insert(f);
+    	rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	
+    	ResourcesAddedOrUpdatedMessage msg = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	Subscription s = new Subscription();
+    	s.setPlatformId("todel");
+    	subRepo.save(s);
+    	
+    	doReturn(new SecurityRequest("sdad"))
+        .when(securityManager).generateSecurityRequest();
+        
+    	doReturn(true)
+        .when(securityManager).verifyReceivedResponse(any(String.class),any(String.class),any(String.class));
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, msg);
+    	TimeUnit.MILLISECONDS.sleep(400);
+    	current = fedResRepo.findAll();
+    	assertEquals(1, current.size());  	
+    }
     
     @Test
     public void SubscriptionResourceTypeMatcher() throws InterruptedException{
@@ -644,35 +662,35 @@ public class ConsumersTest {
     	assertTrue(Consumers.isSubscribed(s, fedResource)); // subscription match
     }
     
-//    @Test
-//    public void addedOrupdatedResources() throws InterruptedException {
-//    	
-//    	f.setMembers(Arrays.asList(fm,fm1));
-//    	federationRepository.save(f);
-//    	//rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
-//    	TimeUnit.MILLISECONDS.sleep(500);
-//    	
-//    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
-//    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
-//    	fedDummies.put("todel", fri);
-//    	fr.setFederatedResourceInfoMap(fedDummies);
-//    	
-//    	ResourcesAddedOrUpdatedMessage raoum = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, raoum);
-//    	TimeUnit.MILLISECONDS.sleep(500);
-//    	
-//    	assertTrue(fedResRepo.findAll().size()>0);
-//    	assertNotNull(fedResRepo.findOne("a@a"));
-//    	
-//    	Set<String> toDel = new HashSet<>();
-//    	toDel.add("a@a@todel");
-//    	ResourcesDeletedMessage rdm = new ResourcesDeletedMessage(toDel);
-//    	
-//    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, rdm);
-//    	TimeUnit.MILLISECONDS.sleep(500);
-//    	
-//    	assertFalse(fedResRepo.findAll().size()>0);
-//    	assertNull(fedResRepo.findOne("a@a"));
-//    }
+    @Test
+    public void addedOrupdatedResources() throws InterruptedException {
+    	
+    	f.setMembers(Arrays.asList(fm,fm1));
+    	federationRepository.save(f);
+    	//rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, f);
+    	TimeUnit.MILLISECONDS.sleep(500);
+    	
+    	Map<String, FederatedResourceInfo> fedDummies = new HashMap<>();
+    	FederatedResourceInfo fri = new FederatedResourceInfo("a@a@todel", "odataurl", "resturl");
+    	fedDummies.put("todel", fri);
+    	fr.setFederatedResourceInfoMap(fedDummies);
+    	
+    	ResourcesAddedOrUpdatedMessage raoum = new ResourcesAddedOrUpdatedMessage(Arrays.asList(fr));
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resAddedOrUpdatedRk, raoum);
+    	TimeUnit.MILLISECONDS.sleep(1000);
+    	
+    	assertTrue(fedResRepo.findAll().size()>0);
+    	assertNotNull(fedResRepo.findOne("a@a"));
+    	
+    	Set<String> toDel = new HashSet<>();
+    	toDel.add("a@a@todel");
+    	ResourcesDeletedMessage rdm = new ResourcesDeletedMessage(toDel);
+    	
+    	rabbitManager.sendAsyncMessageJSON(subscriptionManagerExchange, resRemovedRk, rdm);
+    	TimeUnit.MILLISECONDS.sleep(800);
+    	
+    	assertFalse(fedResRepo.findAll().size()>0);
+    	assertNull(fedResRepo.findOne("a@a"));
+    }
     
 }

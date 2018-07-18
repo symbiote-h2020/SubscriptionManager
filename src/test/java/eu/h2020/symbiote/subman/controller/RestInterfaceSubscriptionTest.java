@@ -9,6 +9,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -71,18 +72,19 @@ public class RestInterfaceSubscriptionTest {
 		 subRepo.save(s);
 	 }
 	 
-//	@Test
-//	public void subscriptionDefinitionOK() throws JsonProcessingException{
-//		Subscription s = new Subscription();
-//		s.setPlatformId(thisPlatformId);
-//		s.setLocations(Arrays.asList("Split"));
-//		
-//		assertNull(subRepo.findOne(thisPlatformId).getLocations());
-//		
-//		assertEquals(new ResponseEntity<>(HttpStatus.OK), restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
-//		
-//		assertNotNull(subRepo.findOne(thisPlatformId).getLocations());	
-//	}
+	@Test
+	public void subscriptionDefinitionOK() throws JsonProcessingException, InterruptedException{
+		System.out.println(thisPlatformId);
+		Subscription s = new Subscription();
+		s.setPlatformId(thisPlatformId);
+		s.setLocations(Arrays.asList("Split"));
+		
+		assertNull(subRepo.findOne(thisPlatformId).getLocations());
+		
+		assertEquals(new ResponseEntity<>(HttpStatus.OK), restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
+		TimeUnit.MILLISECONDS.sleep(500);
+		assertNotNull(subRepo.findOne(thisPlatformId).getLocations());	
+	}
 	
 	@Test
 	public void subscriptionDefinitionMalformedJson() throws JsonProcessingException{
@@ -113,7 +115,7 @@ public class RestInterfaceSubscriptionTest {
 	}
 	
 //	@Test
-//	public void foreignSubscriptionDefinitionPlatformsNotFederated() throws JsonProcessingException{
+//	public void foreignSubscriptionDefinitionPlatformsNotFederated() throws JsonProcessingException, InterruptedException{
 //		
 //		Subscription s = new Subscription();
 //		s.setPlatformId("sender");
@@ -135,7 +137,7 @@ public class RestInterfaceSubscriptionTest {
 //		
 //		fedRepo.save(federation1);
 //		fedRepo.save(federation2);
-//		
+//		TimeUnit.MILLISECONDS.sleep(2000);
 //		assertEquals(new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST),restInterface.foreignSubscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)));
 //	}
 	

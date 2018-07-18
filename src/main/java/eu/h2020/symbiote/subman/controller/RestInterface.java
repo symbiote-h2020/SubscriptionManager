@@ -404,7 +404,7 @@ public class RestInterface {
 		for(Federation federation : fedRepo.findAll()) {			
 			//if this platform and other platform are in federation...
 			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-			if(memberIds.contains(homePlatformId) && memberIds.contains(otherPlatformId)) federatedHomeAndReceived.add(federation.getId());			
+			if(memberIds != null && memberIds.contains(homePlatformId) && memberIds.contains(otherPlatformId)) federatedHomeAndReceived.add(federation.getId());			
 		}
 		return federatedHomeAndReceived;
 	}
