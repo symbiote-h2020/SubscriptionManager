@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.builder.ReflectionToStringBuilder;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.amqp.core.Message;
@@ -60,10 +61,7 @@ public class Consumers {
 	@Value("${platform.id}")
 	private static String platformId;
 
-	@Autowired
 	private static FederationRepository fedRepo;
-
-	@Autowired
 	private static FederatedResourceRepository fedResRepo;
 	
 	@Autowired
@@ -92,7 +90,10 @@ public class Consumers {
 	public static Map<String, String> addressBook;
 
 	@Autowired
-	public Consumers() {
+	public Consumers(FederationRepository fedRepo, FederatedResourceRepository fedResRepo) {
+	    this.fedRepo = fedRepo;
+	    this.fedResRepo = fedResRepo;
+
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
 		addressBook = new HashMap<>();
@@ -107,8 +108,11 @@ public class Consumers {
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.created}"))
 	public void federationCreated(Message msg) {
 
+		logger.debug("Added federation message = " + msg);
 	    try {
             Federation federation = (Federation) messageConverter.fromMessage(msg);
+            logger.debug("Federation = " + ReflectionToStringBuilder.toString(federation));
+            logger.debug("fedRepo = " + fedRepo);
             fedRepo.save(federation);
             logger.info("Federation with id: " + federation.getId() + " added to repository.");
             
@@ -125,7 +129,8 @@ public class Consumers {
 	 * @param msg
 	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.changed}"))
-	public void federationChanged(Message msg) throws IOException {
+	public void federationChanged(Message msg) {
+		logger.debug("Changed federation message = " + msg);
 
 	    try {
             Federation federation = (Federation) messageConverter.fromMessage(msg);
@@ -148,10 +153,10 @@ public class Consumers {
 	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue, exchange = @Exchange(value = "${rabbit.exchange.federation}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.federation.deleted}"))
 	public void federationDeleted(byte[] body) throws IOException {
-
 	    try {
             String federationId = new String(body);
-            
+            logger.debug("Deleted federation with id = " + federationId);
+
             processFederationDeleted(federationId);
         } catch (Exception e) {
             logger.warn("Exception thrown during federation deletion", e);
@@ -167,6 +172,7 @@ public class Consumers {
 	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.addOrUpdateFederatedResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.addOrUpdateFederatedResources}"))
 	public void addedOrUpdateFederatedResource(Message msg) {
+        logger.debug("addedOrUpdateFederatedResource message = " + msg);
 
         // Wrap in try/catch to avoid requeuing
         try {
@@ -266,6 +272,7 @@ public class Consumers {
 	 */
 	@RabbitListener(bindings = @QueueBinding(value = @Queue(value = "${rabbit.queueName.subscriptionManager.removeFederatedResources}"), exchange = @Exchange(value = "${rabbit.exchange.subscriptionManager.name}", type = "topic", ignoreDeclarationExceptions = "true", durable = "false"), key = "${rabbit.routingKey.subscriptionManager.removeFederatedResources}"))
 	public void removeFederatedResource(Message msg) {
+        logger.debug("removeFederatedResource message = " + msg);
 
 	    // Wrap in try/catch to avoid requeuing
 	    try {
