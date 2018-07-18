@@ -568,7 +568,7 @@ public class Consumers {
 		if(numberOfCommonFederations.containsKey(newFedMemberId)) {
 			numberOfCommonFederations.put(newFedMemberId, numberOfCommonFederations.get(newFedMemberId) + 1);
 			if(!created)
-				processSendingExistingFederatedResources(newFedMemberId, RestInterface.findCommonFederations(newFedMemberId), platformId);
+				processSendingExistingFederatedResources(newFedMemberId, RestInterface.findCommonFederations(newFedMemberId, platformId), platformId);
 		}
 		else {
 			numberOfCommonFederations.put(newFedMemberId, 1);

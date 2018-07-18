@@ -49,7 +49,7 @@ public class RestInterface {
 	private SecurityManager securityManager;
 	
 	@Value("${platform.id}")
-	private static String platformId;
+	private String platformId;
 	
 	@Value("${rabbit.exchange.platformRegistry.name}")
 	private String PRexchange;
@@ -252,7 +252,7 @@ public class RestInterface {
 		}
 		
 		//fetch common federationIDs with platform that sent the subscription
-		List<String> federatedHomeAndReceived = findCommonFederations(subscription.getPlatformId());
+		List<String> federatedHomeAndReceived = findCommonFederations(subscription.getPlatformId(), platformId);
 		
 		if(federatedHomeAndReceived.size() == 0)
 			return new ResponseEntity<>("Sender platform and receiving platfrom are not federated!", HttpStatus.BAD_REQUEST);
@@ -399,12 +399,12 @@ public class RestInterface {
 	 * @param otherPlatformId
 	 * @return
 	 */
-	public static List<String> findCommonFederations(String otherPlatformId){
+	public static List<String> findCommonFederations(String otherPlatformId, String homePlatformId){
 		List<String> federatedHomeAndReceived = new ArrayList<>();
 		for(Federation federation : fedRepo.findAll()) {			
 			//if this platform and other platform are in federation...
 			List<String> memberIds = federation.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
-			if(memberIds.contains(platformId) && memberIds.contains(otherPlatformId)) federatedHomeAndReceived.add(federation.getId());			
+			if(memberIds.contains(homePlatformId) && memberIds.contains(otherPlatformId)) federatedHomeAndReceived.add(federation.getId());			
 		}
 		return federatedHomeAndReceived;
 	}
