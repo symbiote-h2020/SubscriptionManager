@@ -59,15 +59,11 @@ public class Consumers {
 	private static Log logger = LogFactory.getLog(Consumers.class);
 
 	@Value("${platform.id}")
-	private static String platformId;
+	private String platformId;
 
 	private static FederationRepository fedRepo;
 	private static FederatedResourceRepository fedResRepo;
-	
-	@Autowired
 	private static SubscriptionRepository subscriptionRepo;
-
-	@Autowired
 	private static SecurityManager securityManager;
 	
 	@Autowired
@@ -90,10 +86,12 @@ public class Consumers {
 	public static Map<String, String> addressBook;
 
 	@Autowired
-	public Consumers(FederationRepository fedRepo, FederatedResourceRepository fedResRepo) {
-	    this.fedRepo = fedRepo;
-	    this.fedResRepo = fedResRepo;
-
+	public Consumers(FederationRepository fedRepo, FederatedResourceRepository fedResRepo, SubscriptionRepository subscriptionRepo, SecurityManager securityManager) {
+	    Consumers.fedRepo = fedRepo;
+	    Consumers.fedResRepo = fedResRepo;
+	    Consumers.subscriptionRepo = subscriptionRepo;
+	    Consumers.securityManager = securityManager;
+	    
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
 		addressBook = new HashMap<>();
@@ -570,7 +568,7 @@ public class Consumers {
 		if(numberOfCommonFederations.containsKey(newFedMemberId)) {
 			numberOfCommonFederations.put(newFedMemberId, numberOfCommonFederations.get(newFedMemberId) + 1);
 			if(!created)
-				processSendingExistingFederatedResources(newFedMemberId, RestInterface.findCommonFederations(newFedMemberId));
+				processSendingExistingFederatedResources(newFedMemberId, RestInterface.findCommonFederations(newFedMemberId), platformId);
 		}
 		else {
 			numberOfCommonFederations.put(newFedMemberId, 1);
@@ -603,10 +601,10 @@ public class Consumers {
 	 * @param newFedMemberId
 	 * @param federationId
 	 */
-	public static void processSendingExistingFederatedResources(String newFedMemberId, List<String> federationIds) {
+	public static void processSendingExistingFederatedResources(String newFedMemberId, List<String> federationIds, String homePlatformId) {
 		
 		//check if there are shared resources in received federations that fit the subscription of added member
-		List<FederatedResource> forSending = findExistingSharedResourcesInFederations(newFedMemberId, federationIds);
+		List<FederatedResource> forSending = findExistingSharedResourcesInFederations(newFedMemberId, federationIds, homePlatformId);
 		
 		if(forSending.size() > 0) {
 		//send found federatedResource to newFedMemberId
@@ -640,12 +638,12 @@ public class Consumers {
 	 * @param federationId
 	 * @return
 	 */
-	public static List<FederatedResource> findExistingSharedResourcesInFederations(String newFedMemberId, List<String> federationIds){
+	public static List<FederatedResource> findExistingSharedResourcesInFederations(String newFedMemberId, List<String> federationIds, String homePlatformId){
 		List<FederatedResource> allFedRes = fedResRepo.findAll();
 		List<FederatedResource> forSending = new ArrayList<>();
 		for(FederatedResource fedRes : allFedRes) {
 			//if this platform shared current fedRes...
-			if(fedRes.getPlatformId().equals(platformId)){
+			if(fedRes.getPlatformId().equals(homePlatformId)){
 				//find all given common federations in fedRes
 				List<String> toStay = new ArrayList<>();
 				for(String fedId : federationIds) {

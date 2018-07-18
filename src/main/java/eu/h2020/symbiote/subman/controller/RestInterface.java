@@ -268,7 +268,7 @@ public class RestInterface {
 		subscriptionRepo.save(subscription);
 		logger.info("Subscription request succesfully processed!");
 		
-		Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), federatedHomeAndReceived);
+		Consumers.processSendingExistingFederatedResources(subscription.getPlatformId(), federatedHomeAndReceived, platformId);
 		
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
