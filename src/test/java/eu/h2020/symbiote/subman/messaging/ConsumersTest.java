@@ -175,57 +175,57 @@ public class ConsumersTest {
         assertEquals(2, federationRepository.findAll().size());
     }
     
-//    @Test
-//    public void federationChangedTest() throws InterruptedException {
-//        Federation federation = new Federation();
-//
-//        federation.setId("exampleId");
-//        federation.setName("FederationName");
-//        FederationMember fm5 = new FederationMember();
-//		fm5.setPlatformId("1950");
-//        federation.setMembers(Arrays.asList(fm5));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
-//
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that there is no subscription created for fm
-//        assertNull(subRepo.findOne(fm5.getPlatformId()));
-//        
-//        
-//        //adding this platform to existing federation
-//        federation.setMembers(Arrays.asList(fm5,fm1));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that now subscription is created for fm5
-//        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
-//        
-//        FederationMember fm2 = new FederationMember();
-//        fm2.setPlatformId("fm2");
-//        fm2.setInterworkingServiceURL("fm2-interworking");
-//        federation.setMembers(Arrays.asList(fm5,fm1,fm2));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that now subscription is created for fm2
-//        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
-//        assertNotNull(subRepo.findOne(fm2.getPlatformId()));
-//        
-//        federation.setMembers(Arrays.asList(fm5,fm1));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that now subscription is deleted for fm2
-//        assertNotNull(subRepo.findOne(fm5.getPlatformId()));
-//        assertNull(subRepo.findOne(fm2.getPlatformId()));
-//        
-//        //removing this platform from existing federation
-//        federation.setMembers(Arrays.asList(fm5));
-//        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
-//        
-//        TimeUnit.MILLISECONDS.sleep(400);
-//        //check that subscription of fm5 is removed
-//        assertNull(subRepo.findOne(fm5.getPlatformId()));
-//    }
+    @Test
+    public void federationChangedTest() throws InterruptedException {
+        Federation federation = new Federation();
+
+        federation.setId("exampleId");
+        federation.setName("FederationName");
+        FederationMember fm5 = new FederationMember();
+		fm5.setPlatformId("1950");
+		fm5.setInterworkingServiceURL("fsjbfkafka");
+        federation.setMembers(Arrays.asList(fm5));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+
+        TimeUnit.MILLISECONDS.sleep(600);
+        assertEquals(0, Consumers.addressBook.size());
+        assertEquals(0, Consumers.numberOfCommonFederations.size());
+        
+        //adding this platform to existing federation
+        federation.setMembers(Arrays.asList(fm5,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(600);
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        
+        //adding another platform in federation with this platform
+        FederationMember fm2 = new FederationMember();
+        fm2.setPlatformId("fm2");
+        fm2.setInterworkingServiceURL("fm2-interworking");
+        federation.setMembers(Arrays.asList(fm5,fm1,fm2));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(800);
+        assertEquals(2, Consumers.addressBook.size());
+        assertEquals(2, Consumers.numberOfCommonFederations.size());
+        
+        //removing other platform from federation with this platform
+        federation.setMembers(Arrays.asList(fm5,fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(800);
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        
+        //removing this platform from existing federation
+        federation.setMembers(Arrays.asList(fm5));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        
+        TimeUnit.MILLISECONDS.sleep(600);
+        assertEquals(0, Consumers.addressBook.size());
+        assertEquals(0, Consumers.numberOfCommonFederations.size());
+    }
 
     @Test
     public void federationDeletedTest() throws InterruptedException {
