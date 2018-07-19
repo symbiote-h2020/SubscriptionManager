@@ -521,7 +521,8 @@ public class Consumers {
 			}
 		}
 		//send notification about deleted symbioteIds
-		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(platformRegistryNotification));
+		if(platformRegistryNotification.size() > 0)
+			rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(platformRegistryNotification));
 	}
 	
 	/**
@@ -543,8 +544,10 @@ public class Consumers {
 				platformRegistryNotification.add(fr.getAggregationId()+"@"+federationId);
 			}
 		}
+		
 		//send notification about deleted symbioteIds
-		rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(platformRegistryNotification));
+		if(platformRegistryNotification.size() > 0)
+			rabbitManager.sendAsyncMessageJSON(PRexchange, PRremovedFedResRK, new ResourcesDeletedMessage(platformRegistryNotification));
 	}
 	
 	/**
