@@ -7,6 +7,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
@@ -27,6 +29,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eu.h2020.symbiote.cloud.model.internal.CloudResource;
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
+import eu.h2020.symbiote.cloud.model.internal.FederationInfoBean;
+import eu.h2020.symbiote.cloud.model.internal.ResourceSharingInformation;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
 import eu.h2020.symbiote.model.cim.Resource;
 import eu.h2020.symbiote.model.cim.Service;
@@ -178,6 +182,13 @@ public class RestInterfaceSubscriptionTest {
 		resDummy.setInterworkingServiceURL("dummyUrl");
 		CloudResource dummy = new CloudResource();
 		dummy.setResource(resDummy);
+		ResourceSharingInformation rsi = new ResourceSharingInformation();
+		rsi.setBartering(true);
+		Map<String, ResourceSharingInformation> rsiMap = new HashMap<>();
+		rsiMap.put("dummyfed", rsi);
+		FederationInfoBean fib = new FederationInfoBean();
+		fib.setSharingInformation(rsiMap);
+		dummy.setFederationInfo(fib);
 		
 		FederatedResource fr = new FederatedResource("a@a",dummy, (double) 4);
 		fedResRepo.save(fr);
