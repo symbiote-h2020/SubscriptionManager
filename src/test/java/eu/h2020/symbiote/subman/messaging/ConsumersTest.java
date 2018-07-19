@@ -226,6 +226,46 @@ public class ConsumersTest {
         assertEquals(0, Consumers.addressBook.size());
         assertEquals(0, Consumers.numberOfCommonFederations.size());
     }
+    
+    @Test
+    public void federationChangedTestFedResSendingTest() throws InterruptedException {
+        Federation federation = new Federation();
+
+        federation.setId("exampleId");
+        federation.setName("FederationName");
+        FederationMember fm5 = new FederationMember();
+		fm5.setPlatformId("1950");
+		fm5.setInterworkingServiceURL("fsjbfkafka");
+        federation.setMembers(Arrays.asList(fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation);
+
+        TimeUnit.MILLISECONDS.sleep(700);
+        assertEquals(0, Consumers.addressBook.size());
+        assertEquals(0, Consumers.numberOfCommonFederations.size());
+        
+        Federation federation2 = new Federation();
+
+        federation2.setId("exampleId2");
+        federation2.setName("FederationName2");
+        
+        federation2.setMembers(Arrays.asList(fm1,fm5));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationCreatedKey, federation2);
+        TimeUnit.MILLISECONDS.sleep(700);
+        assertEquals(1, Consumers.addressBook.size());
+        assertEquals(1, Consumers.numberOfCommonFederations.size());
+        
+        fr = new FederatedResource("a@"+thisPlatformId,dummy, (double) 4);
+        fr.shareToNewFederation("exampleId", true);
+        fedResRepo.save(fr);
+        Subscription s = new Subscription();
+        s.setPlatformId("1950");
+        subRepo.save(s);
+        
+        federation.setMembers(Arrays.asList(fm1,fm5));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        TimeUnit.MILLISECONDS.sleep(700);
+        assertEquals((Integer)2, Consumers.numberOfCommonFederations.get("1950"));
+    }
 
     @Test
     public void federationDeletedTest() throws InterruptedException {
