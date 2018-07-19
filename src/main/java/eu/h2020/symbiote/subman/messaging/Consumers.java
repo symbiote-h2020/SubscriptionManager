@@ -628,6 +628,8 @@ public class Consumers {
 	            logger.warn("Exception thrown during sending existing fedRes to added platform in existing federation.", e);
 	        }
 		}
+		else
+			logger.debug("No already shared resources found that fit the given member's Subscription.");
 	}
 	
 	/**
