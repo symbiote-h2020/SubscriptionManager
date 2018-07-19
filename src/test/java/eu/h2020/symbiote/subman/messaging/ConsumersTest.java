@@ -254,8 +254,15 @@ public class ConsumersTest {
         assertEquals(1, Consumers.addressBook.size());
         assertEquals(1, Consumers.numberOfCommonFederations.size());
         
+        fr = new FederatedResource("a@1950",dummy, (double) 4);
+        fr.shareToNewFederation("exampleId", true);
+        fr.unshareFromFederation("todel");
+        fedResRepo.save(fr);
+        
         fr = new FederatedResource("a@"+thisPlatformId,dummy, (double) 4);
         fr.shareToNewFederation("exampleId", true);
+        fr.shareToNewFederation("exampleId2", true);
+        fr.unshareFromFederation("todel");
         fedResRepo.save(fr);
         Subscription s = new Subscription();
         s.setPlatformId("1950");
@@ -265,6 +272,29 @@ public class ConsumersTest {
         rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
         TimeUnit.MILLISECONDS.sleep(700);
         assertEquals((Integer)2, Consumers.numberOfCommonFederations.get("1950"));
+        
+        assertEquals(2, fedResRepo.findAll().size());
+        //remove other platform that shared fedRes from federation
+        federation.setMembers(Arrays.asList(fm1));
+        rabbitManager.sendAsyncMessageJSON(federationExchange, federationChangedKey, federation);
+        TimeUnit.MILLISECONDS.sleep(800);
+        
+        assertEquals(1, fedResRepo.findAll().size());
+        
+        //remove one federation where this federation has shared fedRes
+        RabbitTemplate rabbitTemplate = rabbitManager.getRabbitTemplate();
+        Message message1 = new Message("exampleId".getBytes(), new MessageProperties());
+        rabbitTemplate.send(federationExchange, federationDeletedKey, message1);
+        TimeUnit.MILLISECONDS.sleep(1000);
+        
+        assertEquals(1, fedResRepo.findAll().size());
+        
+        //remove last federation where fedRes is shared
+        message1 = new Message("exampleId2".getBytes(), new MessageProperties());
+        rabbitTemplate.send(federationExchange, federationDeletedKey, message1);
+        TimeUnit.MILLISECONDS.sleep(1000);
+        
+        assertEquals(0, fedResRepo.findAll().size());
     }
 
     @Test
