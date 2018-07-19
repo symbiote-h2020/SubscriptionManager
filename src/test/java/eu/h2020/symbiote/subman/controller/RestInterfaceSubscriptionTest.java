@@ -25,9 +25,14 @@ import org.springframework.test.context.junit4.SpringRunner;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import eu.h2020.symbiote.cloud.model.internal.CloudResource;
+import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
 import eu.h2020.symbiote.cloud.model.internal.Subscription;
+import eu.h2020.symbiote.model.cim.Resource;
+import eu.h2020.symbiote.model.cim.Service;
 import eu.h2020.symbiote.model.mim.Federation;
 import eu.h2020.symbiote.model.mim.FederationMember;
+import eu.h2020.symbiote.subman.repositories.FederatedResourceRepository;
 import eu.h2020.symbiote.subman.repositories.FederationRepository;
 import eu.h2020.symbiote.subman.repositories.SubscriptionRepository;
 
@@ -50,6 +55,9 @@ public class RestInterfaceSubscriptionTest {
 	
 	@Autowired
 	FederationRepository fedRepo;
+	
+	@Autowired
+	FederatedResourceRepository fedResRepo;
 	
 	@Autowired
 	RestInterface restInterface;
@@ -160,4 +168,23 @@ public class RestInterfaceSubscriptionTest {
 		assertNotNull(subRepo.findOne("sender"));
 	}
 
+	@Test
+	public void fedResdeletitionOnUnsubscription() throws JsonProcessingException{
+		
+		Subscription s = new Subscription();
+		s.setPlatformId(thisPlatformId);
+		
+		Resource resDummy = new Service();
+		resDummy.setInterworkingServiceURL("dummyUrl");
+		CloudResource dummy = new CloudResource();
+		dummy.setResource(resDummy);
+		
+		FederatedResource fr = new FederatedResource("a@a",dummy, (double) 4);
+		fedResRepo.save(fr);
+		
+		assertEquals(1, fedResRepo.findAll().size());
+		s.setLocations(Arrays.asList("Split"));
+		assertEquals(HttpStatus.OK,restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)).getStatusCode());
+		assertEquals(0, fedResRepo.findAll().size());
+	}
 }
