@@ -95,6 +95,24 @@ public class Consumers {
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
 		addressBook = new HashMap<>();
+		
+		//initializing maps to current situation in DB (required to run properly on restart)
+		for(Federation f : fedRepo.findAll()) {
+			if(f.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList()).contains(platformId)) {
+				//current federation contains this platformId
+				for(FederationMember fm : f.getMembers()) {
+					if(fm.getPlatformId().equals(platformId))continue;
+					
+					addressBook.put(fm.getPlatformId(), fm.getInterworkingServiceURL());
+					
+					if(numberOfCommonFederations.containsKey(fm.getPlatformId()))
+						numberOfCommonFederations.put(fm.getPlatformId(), numberOfCommonFederations.get(fm.getPlatformId()) + 1);
+					else
+						numberOfCommonFederations.put(fm.getPlatformId(), 1);					
+				}
+			}
+		}
+		
 	}
 
 	/**
