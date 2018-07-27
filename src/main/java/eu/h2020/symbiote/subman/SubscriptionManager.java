@@ -27,9 +27,13 @@ public class SubscriptionManager {
 	@Bean
 	CommandLineRunner initData(SubscriptionRepository subscriptionRepo){
 	   return args -> {
-		   Subscription initial = new Subscription();
-		   initial.setPlatformId(platformId);
-		   subscriptionRepo.save(initial);
+		   Subscription initial;
+		   initial = subscriptionRepo.findOne(platformId);
+		   if(initial == null) {
+			   initial = new Subscription();
+			   initial.setPlatformId(platformId);
+			   subscriptionRepo.save(initial);
+		   }
 	   };
 	}
 }
