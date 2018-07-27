@@ -198,4 +198,16 @@ public class RestInterfaceSubscriptionTest {
 		assertEquals(HttpStatus.OK,restInterface.subscriptionDefinition(new HttpHeaders(), om.writeValueAsString(s)).getStatusCode());
 		assertEquals(0, fedResRepo.findAll().size());
 	}
+	
+	@Test
+	public void getAllSubscriptions() throws JsonProcessingException {
+		assertEquals(HttpStatus.OK, restInterface.getAllSubscriptions(new HttpHeaders()).getStatusCode());
+	}
+	
+	@Test
+	public void getSpecificSubscription() throws JsonProcessingException {
+		assertEquals(HttpStatus.OK, restInterface.getSpecificSubscription(new HttpHeaders(), "testPlatform").getStatusCode());
+		
+		assertEquals(HttpStatus.NOT_FOUND, restInterface.getSpecificSubscription(new HttpHeaders(), "testPlatformNON").getStatusCode());
+	}
 }

@@ -13,12 +13,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eu.h2020.symbiote.cloud.model.internal.FederatedResource;
@@ -272,6 +274,49 @@ public class RestInterface {
 		
 		return AuthorizationServiceHelper.addSecurityService(new HttpHeaders(), HttpStatus.OK,
 				(String) securityResponse.getBody());
+	}
+	
+	/**
+	 * Endpoint for fetching all existing subscriptions. Method receives HTTP GET request on
+	 * /subscriptionManager/subscriptions path and returns all available subscriptions from
+	 * subscription repository.
+	 * 
+	 * @param httpHeaders
+	 * @return
+	 * @throws JsonProcessingException
+	 */
+	@RequestMapping(value = "/subscriptionManager/subscriptions", method = RequestMethod.GET)
+	public ResponseEntity<?> getAllSubscriptions(@RequestHeader HttpHeaders httpHeaders) throws JsonProcessingException {
+		
+		logger.info("HTTP-GET request received for fetching all existing subscriptions.");
+		List<Subscription> allSubscriptions = subscriptionRepo.findAll();
+		
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Content-Type", "application/json");
+		return new ResponseEntity<>(mapper.writeValueAsString(allSubscriptions), headers,  HttpStatus.OK);
+	}
+	
+	/**
+	 * Endpoint for fetching Subscription with specified platformId.
+	 * Returns 404 if specified subscription is not found, and 200 with JSON subscription if it exists.
+	 * 
+	 * @param httpHeaders
+	 * @param id
+	 * @return
+	 * @throws JsonProcessingException
+	 */
+	@RequestMapping(value = "/subscriptionManager/subscription/{platformId}", method = RequestMethod.GET)
+	public ResponseEntity<?> getSpecificSubscription(@RequestHeader HttpHeaders httpHeaders,@PathVariable(value="platformId") String id) throws JsonProcessingException {
+		
+		logger.info("HTTP-GET request received for fetching subscription with id:" + id + " received.");
+		Subscription sub = subscriptionRepo.findOne(id);
+		
+		if(sub == null) return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		else {	
+			HttpHeaders headers = new HttpHeaders();
+			headers.add("Content-Type", "application/json");
+			return new ResponseEntity<>(mapper.writeValueAsString(sub), headers, HttpStatus.OK);
+		}
 	}
 	
 	/**
