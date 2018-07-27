@@ -728,19 +728,19 @@ public class Consumers {
 	 */
 	public static boolean resourceTypeMatching(Map<String, Boolean> resourceType, Resource resource) {
 		
-		if(resourceType.get("service") && resource instanceof Service)
-			return true;
+		if(resource instanceof Service)
+            return resourceType.containsKey("service") && resourceType.get("service");
+        
+        if (resource instanceof Sensor)
+            return resourceType.containsKey("sensor") && resourceType.get("sensor");
+        
+        if (resource instanceof Actuator)
+            return resourceType.containsKey("actuator") && resourceType.get("actuator");
 
-		if (resourceType.get("device") && resource instanceof Device)
-			return true;
-		
-		if (resourceType.get("sensor") && resource instanceof Sensor)
-			return true;
-		
-		if (resourceType.get("actuator") && resource instanceof Actuator)
-			return true;
-		
-		return false;
+        if (resource instanceof Device)
+            return resourceType.containsKey("device") && resourceType.get("device");
+        
+        return false;
 	}
 	
 	/**

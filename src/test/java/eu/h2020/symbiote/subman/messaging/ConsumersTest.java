@@ -591,6 +591,9 @@ public class ConsumersTest {
     	
     	s.getResourceType().put("actuator", false);
     	assertFalse(Consumers.isSubscribed(s, fedResource));
+    	
+    	s.getResourceType().put("device", true);
+    	assertFalse(Consumers.isSubscribed(s, fedResource));
     }
     
     @Test
