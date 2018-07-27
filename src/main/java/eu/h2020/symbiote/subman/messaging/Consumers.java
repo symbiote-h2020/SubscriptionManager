@@ -58,7 +58,6 @@ public class Consumers {
 
 	private static Log logger = LogFactory.getLog(Consumers.class);
 
-	@Value("${platform.id}")
 	private String platformId;
 
 	private static FederationRepository fedRepo;
@@ -86,19 +85,26 @@ public class Consumers {
 	public static Map<String, String> addressBook;
 
 	@Autowired
-	public Consumers(FederationRepository fedRepo, FederatedResourceRepository fedResRepo, SubscriptionRepository subscriptionRepo, SecurityManager securityManager) {
+	public Consumers(FederationRepository fedRepo,
+					 FederatedResourceRepository fedResRepo,
+					 SubscriptionRepository subscriptionRepo,
+					 SecurityManager securityManager,
+					 @Value("${platform.id}") String platformId) {
 	    Consumers.fedRepo = fedRepo;
 	    Consumers.fedResRepo = fedResRepo;
 	    Consumers.subscriptionRepo = subscriptionRepo;
 	    Consumers.securityManager = securityManager;
+	    this.platformId = platformId;
 	    
 		messageConverter = new Jackson2JsonMessageConverter();
 		numberOfCommonFederations = new HashMap<>();
 		addressBook = new HashMap<>();
-		
+
+
 		//initializing maps to current situation in DB (required to run properly on restart)
 		for(Federation f : fedRepo.findAll()) {
-			if(f.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList()).contains(platformId)) {
+			List<String> platformIds = f.getMembers().stream().map(FederationMember::getPlatformId).collect(Collectors.toList());
+			if(platformIds.contains(this.platformId)) {
 				//current federation contains this platformId
 				for(FederationMember fm : f.getMembers()) {
 					if(fm.getPlatformId().equals(platformId))continue;
@@ -112,7 +118,10 @@ public class Consumers {
 				}
 			}
 		}
-		
+
+		logger.debug("addressBook = " + addressBook);
+		logger.debug("numberOfCommonFederations = " + numberOfCommonFederations);
+
 	}
 
 	/**
