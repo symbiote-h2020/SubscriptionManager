@@ -247,6 +247,12 @@ public class Consumers {
 	
 	                            FederatedResource clonedFr = deserializeFederatedResource(serializeFederatedResource(fr));
 	                            clonedFr.clearPrivateInfo();
+
+	                            if (fr.getCloudResource() != null && fr.getCloudResource().getFederationInfo() != null) {
+									clonedFr.getCloudResource().getFederationInfo().setAggregationId(fr.getAggregationId());
+									clonedFr.getCloudResource().getFederationInfo().setResourceTrust(
+											fr.getCloudResource().getFederationInfo().getResourceTrust());
+								}
 	                            platformMap.put(clonedFr.getAggregationId(), clonedFr);
 	                        }
 	
