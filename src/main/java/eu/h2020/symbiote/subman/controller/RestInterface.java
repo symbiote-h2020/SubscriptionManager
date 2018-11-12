@@ -93,7 +93,7 @@ public class RestInterface {
 	public ResponseEntity<?> resourcesAddedOrUpdated(@RequestHeader HttpHeaders httpHeaders,
 			@RequestBody String receivedJson) {
 
-		logger.info("resourcesAddedOrUpdated HTTP-POST request received.");
+		logger.info("resourcesAddedOrUpdated HTTP-POST request received: " + receivedJson);
 		ResourcesAddedOrUpdatedMessage receivedMessage;
 		try {
 			receivedMessage = mapper.readValue(receivedJson, ResourcesAddedOrUpdatedMessage.class);
@@ -140,7 +140,7 @@ public class RestInterface {
 	@RequestMapping(value = "/subscriptionManager/delete", method = RequestMethod.POST)
 	public ResponseEntity<?> resourcesDeleted(@RequestHeader HttpHeaders httpHeaders, @RequestBody String receivedJson) {
 
-		logger.info("resourcesDeleted HTTP-POST request received.");
+		logger.info("resourcesDeleted HTTP-POST request received: " + receivedJson);
 		ResourcesDeletedMessage receivedMessage;
 		
 		try {
