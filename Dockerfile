@@ -3,7 +3,7 @@ FROM openjdk:8-jre-alpine
 WORKDIR /home
 
 ENV componentName "SubscriptionManager"
-ENV componentVersion 3.0.0
+ENV componentVersion 3.0.1
 
 RUN apk --no-cache add \
 	git \
